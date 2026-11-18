@@ -799,9 +799,12 @@
         <div class="speech-box statue-box">
           <div class="box-label">
             <span>🗿 Coach Arya Speaking (Through Speaker)</span>
-            <span id="modelBadge" style="font-size:0.75rem; background:#f1f5f9; padding:2px 8px; border-radius:6px; color:#64748b;">
-              Llama 3.3 70B (NVIDIA NIM)
-            </span>
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <button onclick="replayLastAnswer()" style="background:#e2e8f0; color:#0f172a; border:none; padding:3px 10px; border-radius:8px; font-size:0.75rem; font-weight:800; cursor:pointer;">🔊 Replay</button>
+              <span id="modelBadge" style="font-size:0.75rem; background:#f1f5f9; padding:2px 8px; border-radius:6px; color:#64748b;">
+                FreeLLMAPI Router
+              </span>
+            </div>
           </div>
           <div class="box-text" id="statueAnswerText">
             Namaskaram! I am Coach Arya, your friendly talking statue. Talk to me in English, and I will help you become fluent!
@@ -935,20 +938,49 @@
     }
     setTimeout(triggerBlink, 2500);
 
-    // --- Speech Synthesis Setup (Tuned for Indian English / Kerala Classroom) ---
+    // --- Speech Synthesis Setup (Prefer reliable local Indian English voice) ---
+    let audioUnlocked = false;
+    let lastSpokenText = '';
+    let ttsKeepAliveTimer = null;
+
     function setupVoices() {
       if (!synth) return;
       const voices = synth.getVoices();
       if (!voices.length) return;
-      selectedVoice = voices.find(v => v.lang === 'en-IN') ||
-                      voices.find(v => v.lang.includes('en-IN')) ||
-                      voices.find(v => v.name.toLowerCase().includes('india')) ||
-                      voices.find(v => v.lang.startsWith('en')) ||
-                      voices[0];
+      // Prefer localService voices first to avoid Chrome remote-voice silent hangs
+      selectedVoice =
+        voices.find(v => v.lang === 'en-IN' && v.localService) ||
+        voices.find(v => v.lang.toLowerCase().includes('en-in') && v.localService) ||
+        voices.find(v => v.lang === 'en-IN') ||
+        voices.find(v => v.lang.toLowerCase().includes('en-in')) ||
+        voices.find(v => v.name.toLowerCase().includes('india')) ||
+        voices.find(v => v.lang.startsWith('en') && v.localService) ||
+        voices.find(v => v.lang.startsWith('en')) ||
+        voices[0];
     }
     if (synth) {
       setupVoices();
       synth.onvoiceschanged = setupVoices;
+    }
+
+    // Must be called synchronously inside a user tap/click so async fetch() replies can speak on mobile Chrome/Safari!
+    function unlockSpeechSynthesis() {
+      if (!synth || audioUnlocked) return;
+      try {
+        setupVoices();
+        const primer = new SpeechSynthesisUtterance(' ');
+        primer.volume = 0;
+        primer.rate = 2;
+        window._primerUtterance = primer;
+        synth.speak(primer);
+        audioUnlocked = true;
+      } catch (e) {}
+    }
+
+    function replayLastAnswer() {
+      unlockSpeechSynthesis();
+      const textToRead = lastSpokenText || statueAnswerText.innerText;
+      if (textToRead) speak(textToRead);
     }
 
     // --- Always-Awake Screen WakeLock ---
@@ -1107,35 +1139,59 @@
 
     const lipSync = new LipSyncEngine();
 
-    // --- Speech Output (TTS) with Proper Lip Sync & Anti-Feedback ---
-    function speak(text, onComplete) {
-      if (!synth) return;
+    // --- Clean text & split into Chrome-safe speech chunks (<180 chars) ---
+    function sanitizeForSpeech(text) {
+      return String(text || '')
+        .replace(/[*_#`~]/g, '')
+        .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
 
+    function splitIntoSpeechChunks(text) {
+      const sentences = text.match(/[^.!?]+[.!?]*\s*/g) || [text];
+      const chunks = [];
+      let current = '';
+      for (const s of sentences) {
+        if ((current + s).length > 175 && current.trim()) {
+          chunks.push(current.trim());
+          current = s;
+        } else {
+          current += s;
+        }
+      }
+      if (current.trim()) chunks.push(current.trim());
+      return chunks.length ? chunks : [text];
+    }
+
+    // --- Bulletproof Speech Output (Fixes Chrome/Android/Edge silent TTS bugs) ---
+    let speakSessionId = 0;
+
+    function speak(text, onComplete) {
+      const cleanText = sanitizeForSpeech(text);
+      if (!cleanText || !synth) return;
+      lastSpokenText = cleanText;
+
+      const mySession = ++speakSessionId;
       pauseRecognitionForSpeech();
+      clearInterval(ttsKeepAliveTimer);
+      lipSync.stop();
+
       isSpeaking = true;
       mascotWrapper.classList.add('speaking');
       mascotWrapper.classList.remove('listening');
       stateBadge.className = 'statue-state-badge state-speaking';
       stateBadge.innerText = '🗣️ Coach Arya Answering...';
 
-      synth.cancel();
+      if (!selectedVoice) setupVoices();
 
-      const utterance = new SpeechSynthesisUtterance(text);
-      if (selectedVoice) utterance.voice = selectedVoice;
-      utterance.rate = 0.92; // Measured, clear pace for Kerala students
-      utterance.pitch = 1.05;
+      const chunks = splitIntoSpeechChunks(cleanText);
+      let chunkIndex = 0;
+      let retriedDefaultVoice = false;
 
-      let lipSyncStarted = false;
-      const beginLipSync = () => {
-        if (!lipSyncStarted && isSpeaking) {
-          lipSyncStarted = true;
-          lipSync.start(utterance, text, utterance.rate);
-        }
-      };
-
-      utterance.onstart = beginLipSync;
-
-      utterance.onend = () => {
+      const finishSpeaking = () => {
+        if (mySession !== speakSessionId) return;
+        clearInterval(ttsKeepAliveTimer);
         lipSync.stop();
         isSpeaking = false;
         mascotWrapper.classList.remove('speaking');
@@ -1146,20 +1202,100 @@
         if (onComplete) onComplete();
       };
 
-      utterance.onerror = (e) => {
-        console.warn('TTS error:', e);
-        lipSync.stop();
-        isSpeaking = false;
-        mascotWrapper.classList.remove('speaking');
-        resumeRecognitionAfterSpeech();
+      const speakNextChunk = (useDefaultVoice = false) => {
+        if (mySession !== speakSessionId) return;
+        if (chunkIndex >= chunks.length) {
+          finishSpeaking();
+          return;
+        }
+
+        const chunkText = chunks[chunkIndex];
+        const utterance = new SpeechSynthesisUtterance(chunkText);
+        // Pin utterance globally so Chrome GC never kills it mid-speech!
+        window._activeUtterance = utterance;
+
+        utterance.lang = 'en-IN';
+        if (!useDefaultVoice && selectedVoice) {
+          utterance.voice = selectedVoice;
+          utterance.lang = selectedVoice.lang || 'en-IN';
+        }
+        utterance.rate = 0.92;
+        utterance.pitch = 1.02;
+        utterance.volume = 1.0;
+
+        let lipSyncStarted = false;
+        const beginLipSync = () => {
+          if (mySession !== speakSessionId) return;
+          if (!lipSyncStarted && isSpeaking) {
+            lipSyncStarted = true;
+            lipSync.start(utterance, chunkText, utterance.rate);
+          }
+        };
+
+        utterance.onstart = beginLipSync;
+
+        utterance.onend = () => {
+          if (mySession !== speakSessionId) return;
+          lipSync.stop();
+          chunkIndex++;
+          speakNextChunk(useDefaultVoice);
+        };
+
+        utterance.onerror = (e) => {
+          if (mySession !== speakSessionId) return;
+          console.warn('TTS error:', e.error);
+          lipSync.stop();
+
+          // If blocked by browser autoplay before first tap, prompt 1-tap replay
+          if (e.error === 'not-allowed') {
+            clearInterval(ttsKeepAliveTimer);
+            isSpeaking = false;
+            mascotWrapper.classList.remove('speaking');
+            stateBadge.className = 'statue-state-badge state-speaking';
+            stateBadge.innerText = '🔇 Tap "🔊 Replay" to unlock Coach voice!';
+            return;
+          }
+
+          // If custom voice failed, retry once cleanly using system default voice
+          if (!useDefaultVoice && !retriedDefaultVoice && selectedVoice) {
+            retriedDefaultVoice = true;
+            setTimeout(() => speakNextChunk(true), 80);
+            return;
+          }
+
+          finishSpeaking();
+        };
+
+        try {
+          if (synth.paused) synth.resume();
+          synth.speak(utterance);
+        } catch (err) {
+          console.warn('synth.speak failed:', err);
+          finishSpeaking();
+          return;
+        }
+
+        setTimeout(() => {
+          if (mySession === speakSessionId && isSpeaking && !lipSyncStarted && synth.speaking) {
+            beginLipSync();
+          }
+        }, 200);
       };
 
-      synth.speak(utterance);
+      // Chrome/Android keep-alive prevents 15-second pause hang
+      ttsKeepAliveTimer = setInterval(() => {
+        if (synth.speaking && !synth.paused) {
+          try { synth.resume(); } catch (e) {}
+        }
+      }, 4000);
 
-      // Mobile browser safety fallback if onstart event is delayed
-      setTimeout(() => {
-        if (isSpeaking && !lipSyncStarted) beginLipSync();
-      }, 180);
+      // Avoid Chrome cancel()-then-speak() same-tick drop bug!
+      if (synth.speaking || synth.pending) {
+        try { synth.cancel(); } catch (e) {}
+        setTimeout(() => speakNextChunk(false), 80);
+      } else {
+        speakNextChunk(false);
+      }
     }
 
     // --- Speech Recognition (Continuous for Statue) ---
@@ -1407,11 +1543,13 @@ You MUST respond in valid JSON ONLY (no markdown fences) with these exact keys:
 
     // --- Interactive Testing Functions ---
     function testSpokenInput(text) {
+      unlockSpeechSynthesis();
       studentSpeechText.innerText = `"${text}"`;
       handleStudentInput(text);
     }
 
     function simulateRandomKeralaStudent() {
+      unlockSpeechSynthesis();
       const examples = [
         "Yesterday I go to Kozhikode beach with my family.",
         "I has two pencils in my school bag.",
@@ -1429,13 +1567,16 @@ You MUST respond in valid JSON ONLY (no markdown fences) with these exact keys:
       await FreeLLMRouter.hydrateFromServerIfAvailable();
       updateRouterStatusBadge();
       initSpeechRecognition();
-      
+
       const enableAudio = () => {
+        unlockSpeechSynthesis();
         startRecognitionSafe();
         requestWakeLock();
         document.removeEventListener('click', enableAudio);
+        document.removeEventListener('touchstart', enableAudio);
       };
       document.addEventListener('click', enableAudio);
+      document.addEventListener('touchstart', enableAudio, { passive: true });
 
       startRecognitionSafe();
     });
