@@ -532,7 +532,7 @@
         <button class="btn btn-secondary" onclick="exportConfig()">⬇️ Export JSON</button>
         <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">⬆️ Import JSON</button>
         <input type="file" id="importFile" accept=".json" style="display:none" onchange="importConfig(event)" />
-        <a href="index.html" class="btn btn-primary">🗿 Open Statue Kiosk</a>
+        <a href="index.html" onclick="return openStatueWithSync()" class="btn btn-primary">🗿 Open Statue Kiosk</a>
         <button class="btn btn-danger" onclick="lockAdmin()">🔒 Lock</button>
       </div>
     </header>
@@ -671,6 +671,14 @@
         input.value = '';
         input.focus();
       }
+    }
+
+    function openStatueWithSync() {
+      try {
+        window.name = 'FREELM_SYNC:' + JSON.stringify(FreeLLMRouter.loadConfig());
+      } catch (e) {}
+      window.location.href = 'index.html';
+      return false;
     }
 
     function lockAdmin() {

@@ -646,9 +646,9 @@
         <span id="micIcon">🎙️</span>
         <span id="micStatusText">Statue Mic: ACTIVE</span>
       </div>
-      <a href="admin.html" class="btn-key" style="text-decoration:none;" title="Passkey-protected Admin Panel">
+      <button class="btn-key" onclick="openAdminPanel()" title="Passkey-protected Admin Panel">
         <span>🔒 Admin</span>
-      </a>
+      </button>
     </div>
   </header>
 
@@ -889,8 +889,9 @@
   <!-- Real HTML5 Audio Player for Crystal-Clear Indian English MP3 Voice (/api/tts) -->
   <audio id="coachAudio" playsinline preload="auto" style="display:none;"></audio>
 
-  <!-- Load Shared FreeLLMAPI Multi-Provider & Multi-Key Router -->
+  <!-- Load Shared FreeLLMAPI Router & Passkey Admin Panel -->
   <script src="llm-router.js"></script>
+  <script src="admin-panel.js"></script>
 
   <script>
     // --- Application State ---
@@ -1665,11 +1666,37 @@ Return ONLY valid JSON (no markdown, no code blocks):
       testSpokenInput(randomText);
     }
 
+    function openAdminPanel() {
+      pauseRecognitionForSpeech();
+      AdminPanel.open(() => {
+        updateRouterStatusBadge();
+        if (!isSpeaking && !isThinking) startRecognitionSafe();
+      });
+    }
+
     // --- Init ---
     window.addEventListener('DOMContentLoaded', async () => {
+      // Import keys cleanly if handed off from standalone admin.html on file://
+      try {
+        if (window.name && window.name.startsWith('FREELM_SYNC:')) {
+          const synced = JSON.parse(window.name.slice('FREELM_SYNC:'.length));
+          if (synced && synced.providers && FreeLLMRouter.countActiveKeys(synced) > 0) {
+            FreeLLMRouter.saveConfig(synced);
+          }
+          window.name = '';
+        }
+      } catch (e) {}
+
       await FreeLLMRouter.hydrateFromServerIfAvailable();
       updateRouterStatusBadge();
       initSpeechRecognition();
+
+      window.addEventListener('storage', updateRouterStatusBadge);
+      window.addEventListener('focus', updateRouterStatusBadge);
+
+      if (window.location.hash === '#admin') {
+        openAdminPanel();
+      }
 
       const enableAudio = () => {
         unlockSpeechSynthesis();
