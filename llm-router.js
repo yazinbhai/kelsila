@@ -170,13 +170,17 @@
     };
   }
 
+  let memoryConfig = null;
+  let serverKeyCount = 0;
+
   function loadConfig() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) {
-        const def = createDefaultConfig();
-        saveConfig(def);
-        return def;
+        if (memoryConfig) return memoryConfig;
+        memoryConfig = createDefaultConfig();
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(memoryConfig)); } catch (e) {}
+        return memoryConfig;
       }
       const parsed = JSON.parse(raw);
       const def = createDefaultConfig();
@@ -202,18 +206,23 @@
 
       if (!parsed.stats) parsed.stats = def.stats;
       if (!parsed.strategy) parsed.strategy = 'auto:balanced';
-      if (migrated) saveConfig(parsed);
+      memoryConfig = parsed;
+      if (migrated) {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed)); } catch (e) {}
+      }
       return parsed;
     } catch (e) {
-      return createDefaultConfig();
+      if (!memoryConfig) memoryConfig = createDefaultConfig();
+      return memoryConfig;
     }
   }
 
   function saveConfig(config) {
+    memoryConfig = config;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
     } catch (e) {
-      console.warn('Could not save router config to localStorage:', e);
+      console.warn('Could not save router config to localStorage (using memory fallback):', e);
     }
     if (window.location.protocol.startsWith('http') &&
         (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')) {
@@ -225,7 +234,56 @@
     }
   }
 
+  function importFromUrlSync() {
+    try {
+      const hash = window.location.hash || '';
+      if (hash.startsWith('#sync=')) {
+        const b64 = decodeURIComponent(hash.slice(6));
+        const json = decodeURIComponent(escape(atob(b64)));
+        const parsed = JSON.parse(json);
+        if (parsed && parsed.providers) {
+          saveConfig(parsed);
+          // Immediately clear sensitive keys from URL bar
+          if (window.history && window.history.replaceState) {
+            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+          }
+          return true;
+        }
+      }
+    } catch (e) {
+      console.warn('Sync link import failed:', e);
+    }
+    return false;
+  }
+
+  function createSyncUrl() {
+    const cfg = loadConfig();
+    const compact = {
+      strategy: cfg.strategy,
+      pinnedProvider: cfg.pinnedProvider,
+      cooldownSeconds: cfg.cooldownSeconds,
+      providers: {}
+    };
+    Object.keys(PROVIDER_CATALOG).forEach(pid => {
+      const p = cfg.providers[pid];
+      compact.providers[pid] = {
+        enabled: p.enabled,
+        model: p.model,
+        rrIndex: 0,
+        keys: (p.keys || []).map(k => ({ id: k.id, key: k.key, label: k.label, enabled: k.enabled, requests: 0, errors: 0, cooldownUntil: 0, lastError: '' }))
+      };
+    });
+    const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(compact))));
+    const base = window.location.origin && window.location.origin !== 'null'
+      ? window.location.origin + '/'
+      : window.location.href.split('#')[0].replace(/admin\.html$/i, 'index.html');
+    return `${base}#sync=${encodeURIComponent(b64)}`;
+  }
+
   async function hydrateFromServerIfAvailable() {
+    importFromUrlSync();
+
+    // 1. Check Windows local launcher.py config.json (never overwrites non-empty local)
     if (window.location.protocol.startsWith('http') &&
         (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')) {
       try {
@@ -234,15 +292,45 @@
           const data = await res.json();
           if (data && data.providers) {
             const local = loadConfig();
-            if (countActiveKeys(data) > 0 && countActiveKeys(local) === 0) {
-              localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-              return loadConfig();
+            if (countLocalKeys(data) > 0 && countLocalKeys(local) === 0) {
+              memoryConfig = data;
+              try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) {}
             }
           }
         }
       } catch (e) {}
     }
+
+    // 2. Check optional Vercel server-side environment keys (/api/server-chat)
+    if (hasProxyAvailable()) {
+      try {
+        const sRes = await fetch('/api/server-chat');
+        if (sRes.ok) {
+          const sData = await sRes.json();
+          if (sData && sData.configured && sData.totalKeys > 0) {
+            serverKeyCount = sData.totalKeys;
+          }
+        }
+      } catch (e) {}
+    }
+
     return loadConfig();
+  }
+
+  function countLocalKeys(config) {
+    const cfg = config || loadConfig();
+    let count = 0;
+    Object.keys(PROVIDER_CATALOG).forEach(pid => {
+      const p = cfg.providers[pid];
+      if (p && p.enabled && Array.isArray(p.keys)) {
+        count += p.keys.filter(k => k.enabled && k.key).length;
+      }
+    });
+    return count;
+  }
+
+  function countActiveKeys(config) {
+    return countLocalKeys(config) + (config ? 0 : serverKeyCount);
   }
 
   function loadLogs() {
@@ -265,18 +353,6 @@
     if (!key) return '';
     if (key.length <= 10) return '••••' + key.slice(-3);
     return key.slice(0, 6) + '••••••' + key.slice(-4);
-  }
-
-  function countActiveKeys(config) {
-    const cfg = config || loadConfig();
-    let count = 0;
-    Object.keys(PROVIDER_CATALOG).forEach(pid => {
-      const p = cfg.providers[pid];
-      if (p && p.enabled && Array.isArray(p.keys)) {
-        count += p.keys.filter(k => k.enabled && k.key).length;
-      }
-    });
-    return count;
   }
 
   function getKeyCooldownRemaining(keyObj) {
@@ -554,7 +630,18 @@
     const config = loadConfig();
     const attempts = buildAttemptChain(config, overrideProviderId, overrideKeyId);
 
+    // Fallback to optional server-side Vercel environment keys (/api/server-chat) if no local browser keys
     if (!attempts.length) {
+      if (!overrideKeyId && serverKeyCount > 0 && hasProxyAvailable()) {
+        const sRes = await fetch('/api/server-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages, temperature, maxTokens })
+        });
+        if (sRes.ok) {
+          return await sRes.json();
+        }
+      }
       const noKeyErr = new Error('NO_API_KEYS_CONFIGURED');
       noKeyErr.code = 'NO_API_KEYS';
       throw noKeyErr;
@@ -638,8 +725,11 @@
     loadConfig,
     saveConfig,
     hydrateFromServerIfAvailable,
+    createSyncUrl,
+    importFromUrlSync,
     createKeyEntry,
     maskKey,
+    countLocalKeys,
     countActiveKeys,
     getKeyCooldownRemaining,
     fetchLiveModels,

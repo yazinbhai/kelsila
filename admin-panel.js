@@ -178,6 +178,7 @@
             </div>
           </div>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="adm-btn adm-btn-sec" onclick="AdminPanel.copySyncLink()" title="Open this link on your phone or another PC to transfer all saved keys in 1 tap">🔗 Copy Sync Link</button>
             <button class="adm-btn adm-btn-sec" onclick="AdminPanel.clearCooldowns()">♻️ Reset Cooldowns</button>
             <button class="adm-btn adm-btn-sec" onclick="AdminPanel.exportJson()">⬇️ Export JSON</button>
             <button class="adm-btn adm-btn-sec" onclick="document.getElementById('admImportInput').click()">⬆️ Import JSON</button>
@@ -592,6 +593,16 @@
       }
     },
     clearLogs() { FreeLLMRouter.clearLogs(); renderLogs(); },
+    copySyncLink() {
+      const url = FreeLLMRouter.createSyncUrl();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url)
+          .then(() => showAdminToast('🔗 Sync link copied! Open it on your phone or another PC to transfer all keys.'))
+          .catch(() => prompt('Copy this Sync Link and open it on your phone or school PC:', url));
+      } else {
+        prompt('Copy this Sync Link and open it on your phone or school PC:', url);
+      }
+    },
     exportJson() {
       const blob = new Blob([JSON.stringify(FreeLLMRouter.loadConfig(), null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);

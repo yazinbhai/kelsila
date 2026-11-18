@@ -528,6 +528,7 @@
       </div>
 
       <div class="header-actions">
+        <button class="btn btn-secondary" onclick="copySyncLink()" title="Open this link on your phone or another PC to transfer all saved keys in 1 tap">🔗 Copy Sync Link</button>
         <button class="btn btn-secondary" onclick="clearAllCooldowns()">♻️ Reset Cooldowns</button>
         <button class="btn btn-secondary" onclick="exportConfig()">⬇️ Export JSON</button>
         <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">⬆️ Import JSON</button>
@@ -1017,6 +1018,17 @@
       FreeLLMRouter.clearLogs();
       renderLogs();
       showToast('🗑️ Logs cleared.');
+    }
+
+    function copySyncLink() {
+      const url = FreeLLMRouter.createSyncUrl();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url)
+          .then(() => showToast('🔗 Sync link copied! Open it on your phone or another PC to sync keys.'))
+          .catch(() => prompt('Copy this Sync Link and open it on your phone or school PC:', url));
+      } else {
+        prompt('Copy this Sync Link and open it on your phone or school PC:', url);
+      }
     }
 
     function exportConfig() {
