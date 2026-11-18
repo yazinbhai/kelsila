@@ -110,23 +110,26 @@ class CoachHTTPHandler(SimpleHTTPRequestHandler):
             try:
                 req_data = json.loads(raw_body.decode("utf-8"))
                 target_url = req_data.get("targetUrl", "")
+                req_method = "GET" if req_data.get("method") == "GET" else "POST"
                 fwd_headers = req_data.get("headers", {})
-                payload = req_data.get("payload", {})
+                payload = req_data.get("payload", None)
 
                 parsed = urlparse(target_url)
                 if parsed.scheme != "https" or parsed.hostname not in ALLOWED_PROXY_HOSTS:
                     return self._send_json(403, {"error": "Target host not allowed"})
 
-                safe_headers = {"Content-Type": "application/json"}
+                safe_headers = {}
+                if req_method == "POST":
+                    safe_headers["Content-Type"] = "application/json"
                 for k in ("Authorization", "HTTP-Referer", "X-Title"):
                     if k in fwd_headers and fwd_headers[k]:
                         safe_headers[k] = fwd_headers[k]
 
                 up_req = urllib.request.Request(
                     target_url,
-                    data=json.dumps(payload).encode("utf-8"),
+                    data=json.dumps(payload).encode("utf-8") if (req_method == "POST" and payload is not None) else None,
                     headers=safe_headers,
-                    method="POST",
+                    method=req_method,
                 )
                 try:
                     with urllib.request.urlopen(up_req, timeout=20) as resp:

@@ -730,8 +730,16 @@
         const meta = FreeLLMRouter.PROVIDER_CATALOG[pid];
         const pCfg = config.providers[pid];
 
-        const modelOptions = meta.models.map(m =>
-          `<option value="${m.id}" ${pCfg.model === m.id ? 'selected' : ''}>${m.label}</option>`
+        const mergedModels = [...meta.models];
+        (pCfg.liveModels || []).forEach(lm => {
+          if (!mergedModels.some(m => m.id === lm.id)) mergedModels.push(lm);
+        });
+        if (pCfg.model && !mergedModels.some(m => m.id === pCfg.model)) {
+          mergedModels.unshift({ id: pCfg.model, label: `${pCfg.model} (Custom)` });
+        }
+
+        const modelOptions = mergedModels.map(m =>
+          `<option value="${escapeHtml(m.id)}" ${pCfg.model === m.id ? 'selected' : ''}>${escapeHtml(m.label)}</option>`
         ).join('');
 
         let keysHtml = '';
@@ -791,7 +799,10 @@
           </div>
 
           <div class="field">
-            <label>Active Model for ${meta.name}</label>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <label style="margin-bottom:0;">Active Model for ${meta.name}</label>
+              <button class="btn btn-secondary btn-sm" onclick="refreshProviderModels('${pid}')">🔄 Fetch Live Models</button>
+            </div>
             <select class="select" onchange="changeProviderModel('${pid}', this.value)">
               ${modelOptions}
             </select>
@@ -900,24 +911,46 @@
       showToast('♻️ All key cooldowns cleared!');
     }
 
+    async function refreshProviderModels(pid) {
+      const name = FreeLLMRouter.PROVIDER_CATALOG[pid].name;
+      showToast(`🔄 Fetching live models from ${name}...`);
+      try {
+        const list = await FreeLLMRouter.fetchLiveModels(pid);
+        renderAll();
+        showToast(`✅ Loaded ${list.length} live models for ${name}!`);
+      } catch (err) {
+        showToast(`❌ Could not fetch models: ${err.message.slice(0, 90)}`);
+      }
+    }
+
     async function testSingleKey(pid, keyId) {
-      showToast(`⚡ Testing ${FreeLLMRouter.PROVIDER_CATALOG[pid].name} key...`);
+      const name = FreeLLMRouter.PROVIDER_CATALOG[pid].name;
+      const out = document.getElementById('playgroundOutput');
+      showToast(`⚡ Testing ${name} key...`);
+      out.innerText = `⏳ Testing ${name} key (model: ${config.providers[pid].model})...`;
       try {
         const res = await FreeLLMRouter.chat({
           overrideProviderId: pid,
           overrideKeyId: keyId,
           jsonMode: false,
-          maxTokens: 40,
+          maxTokens: 256,
           messages: [
-            { role: 'system', content: 'Reply in 5 words max.' },
+            { role: 'system', content: 'Reply in one short friendly sentence.' },
             { role: 'user', content: 'Say hello to Kerala students!' }
           ]
         });
         renderAll();
-        showToast(`✅ Key OK! (${res.latencyMs}ms): "${res.content.slice(0, 45)}"`);
+        out.innerText =
+          `✅ ${name} Key Works!\n` +
+          `Model   : ${res.model}\n` +
+          `Key     : ${res.keyLabel}\n` +
+          `Latency : ${res.latencyMs} ms\n` +
+          `Reply   : ${res.content}`;
+        showToast(`✅ ${name} OK! (${res.latencyMs}ms)`);
       } catch (err) {
         renderAll();
-        showToast(`❌ Key Failed: ${err.message.slice(0, 70)}`);
+        out.innerText = `❌ ${name} Key Test Failed:\n${err.message}`;
+        showToast(`❌ Key Failed: ${err.message.slice(0, 90)}`);
       }
     }
 

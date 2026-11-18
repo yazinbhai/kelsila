@@ -1,6 +1,6 @@
 /**
- * FreeLLMAPI-Style Unified Multi-Provider, Multi-Key AI Router
- * ============================================================
+ * FreeLLMAPI-Style Unified Multi-Provider, Multi-Key AI Router (2026 Live Catalog)
+ * ================================================================================
  * Supports:
  *   - NVIDIA NIM        (integrate.api.nvidia.com)
  *   - Groq Cloud        (api.groq.com)
@@ -11,15 +11,34 @@
  *   - Multiple API keys per provider with per-provider round-robin rotation
  *   - Automatic failover chain across keys AND providers on 429 / 5xx / timeout / auth error
  *   - Per-key cooldown ledger with automatic expiry
- *   - Smart routing strategies: auto:balanced, auto:fast, auto:smart, round-robin, or pinned provider
+ *   - Auto-migration of retired/deprecated model IDs saved in localStorage
+ *   - Automatic retry without response_format if a model rejects json_object
+ *   - Live model catalog discovery via provider /models endpoints
  *   - Automatic CORS proxy detection (/api/proxy on Vercel & Windows launcher.py)
- *   - Live telemetry, per-key usage counters, and routing event logs
  */
 
 (function (global) {
   const STORAGE_KEY = 'FREELM_COACH_CONFIG_V1';
   const LOGS_KEY = 'FREELM_COACH_LOGS_V1';
   const ADMIN_PASSKEY = '8590584541';
+
+  // Retired model IDs auto-migrated to live working defaults
+  const RETIRED_MODELS = new Set([
+    'meta/llama-3.3-70b-instruct',
+    'meta/llama-3.1-8b-instruct',
+    'meta/llama-3.1-70b-instruct',
+    'nvidia/llama-3.1-nemotron-70b-instruct',
+    'mistralai/mistral-large-2-instruct',
+    'meta-llama/llama-3.3-70b-instruct:free',
+    'google/gemini-2.0-flash-exp:free',
+    'deepseek/deepseek-r1:free',
+    'qwen/qwen-2.5-72b-instruct:free',
+    'gemma2-9b-it',
+    'mixtral-8x7b-32768',
+    'gemini-1.5-flash',
+    'gemini-1.5-pro',
+    'gemini-2.0-flash'
+  ]);
 
   const PROVIDER_CATALOG = {
     groq: {
@@ -30,12 +49,13 @@
       keyPlaceholder: 'gsk_...',
       getKeyUrl: 'https://console.groq.com/keys',
       endpoint: 'https://api.groq.com/openai/v1/chat/completions',
+      modelsEndpoint: 'https://api.groq.com/openai/v1/models',
       defaultModel: 'llama-3.3-70b-versatile',
       models: [
         { id: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile (Recommended)' },
         { id: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant (Fastest Voice)' },
-        { id: 'gemma2-9b-it', label: 'Gemma 2 9B Instruct' },
-        { id: 'mixtral-8x7b-32768', label: 'Mixtral 8x7B' }
+        { id: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B (High Quality)' },
+        { id: 'openai/gpt-oss-20b', label: 'GPT-OSS 20B (Fast)' }
       ],
       needsProxyInBrowser: false,
       type: 'openai'
@@ -48,12 +68,12 @@
       keyPlaceholder: 'AIzaSy...',
       getKeyUrl: 'https://aistudio.google.com/app/apikey',
       endpoint: 'https://generativelanguage.googleapis.com/v1beta/models',
-      defaultModel: 'gemini-2.5-flash',
+      modelsEndpoint: 'https://generativelanguage.googleapis.com/v1beta/models',
+      defaultModel: 'gemini-3.5-flash-lite',
       models: [
-        { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Best Balance)' },
-        { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Fast)' },
-        { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash (High Quota)' },
-        { id: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro (Smartest)' }
+        { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite (Fastest & Free Tier)' },
+        { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash (Best Quality)' },
+        { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Legacy)' }
       ],
       needsProxyInBrowser: false,
       type: 'google'
@@ -66,12 +86,15 @@
       keyPlaceholder: 'nvapi-...',
       getKeyUrl: 'https://build.nvidia.com/',
       endpoint: 'https://integrate.api.nvidia.com/v1/chat/completions',
-      defaultModel: 'meta/llama-3.3-70b-instruct',
+      modelsEndpoint: 'https://integrate.api.nvidia.com/v1/models',
+      defaultModel: 'google/gemma-4-31b-it',
       models: [
-        { id: 'meta/llama-3.3-70b-instruct', label: 'Llama 3.3 70B Instruct (Best Coaching)' },
-        { id: 'meta/llama-3.1-8b-instruct', label: 'Llama 3.1 8B Instruct (Fastest)' },
-        { id: 'nvidia/llama-3.1-nemotron-70b-instruct', label: 'Nemotron 70B Instruct' },
-        { id: 'mistralai/mistral-large-2-instruct', label: 'Mistral Large 2 Instruct' }
+        { id: 'google/gemma-4-31b-it', label: 'Gemma 4 31B Instruct (Recommended)' },
+        { id: 'google/gemma-3-12b-it', label: 'Gemma 3 12B Instruct (Fastest Voice)' },
+        { id: 'nvidia/nemotron-3.5-lightning-30b-a3b', label: 'Nemotron 3.5 Lightning 30B' },
+        { id: 'openai/gpt-oss-20b', label: 'GPT-OSS 20B' },
+        { id: 'mistralai/mistral-large-4-1t-a52b', label: 'Mistral Large 4' },
+        { id: 'z-ai/glm-5.3-flash', label: 'GLM 5.3 Flash' }
       ],
       needsProxyInBrowser: true,
       type: 'openai'
@@ -84,12 +107,13 @@
       keyPlaceholder: 'sk-or-v1-...',
       getKeyUrl: 'https://openrouter.ai/keys',
       endpoint: 'https://openrouter.ai/api/v1/chat/completions',
-      defaultModel: 'meta-llama/llama-3.3-70b-instruct:free',
+      modelsEndpoint: 'https://openrouter.ai/api/v1/models',
+      defaultModel: 'openrouter/free',
       models: [
-        { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B Instruct (:free)' },
-        { id: 'google/gemini-2.0-flash-exp:free', label: 'Gemini 2.0 Flash Exp (:free)' },
-        { id: 'deepseek/deepseek-r1:free', label: 'DeepSeek R1 (:free)' },
-        { id: 'qwen/qwen-2.5-72b-instruct:free', label: 'Qwen 2.5 72B Instruct (:free)' }
+        { id: 'openrouter/free', label: 'OpenRouter Auto Free (Never Breaks!)' },
+        { id: 'google/gemma-4-26b-a4b-it:free', label: 'Gemma 4 26B (:free)' },
+        { id: 'google/gemma-4-31b-it:free', label: 'Gemma 4 31B (:free)' },
+        { id: 'nvidia/nemotron-3.5-lightning:free', label: 'Nemotron 3.5 Lightning (:free)' }
       ],
       needsProxyInBrowser: false,
       type: 'openai'
@@ -110,10 +134,10 @@
       providerRotationIndex: 0,
       cooldownSeconds: 60,
       providers: {
-        nvidia: { enabled: true, model: PROVIDER_CATALOG.nvidia.defaultModel, rrIndex: 0, keys: [] },
-        groq: { enabled: true, model: PROVIDER_CATALOG.groq.defaultModel, rrIndex: 0, keys: [] },
-        google: { enabled: true, model: PROVIDER_CATALOG.google.defaultModel, rrIndex: 0, keys: [] },
-        openrouter: { enabled: true, model: PROVIDER_CATALOG.openrouter.defaultModel, rrIndex: 0, keys: [] }
+        nvidia: { enabled: true, model: PROVIDER_CATALOG.nvidia.defaultModel, rrIndex: 0, keys: [], liveModels: [] },
+        groq: { enabled: true, model: PROVIDER_CATALOG.groq.defaultModel, rrIndex: 0, keys: [], liveModels: [] },
+        google: { enabled: true, model: PROVIDER_CATALOG.google.defaultModel, rrIndex: 0, keys: [], liveModels: [] },
+        openrouter: { enabled: true, model: PROVIDER_CATALOG.openrouter.defaultModel, rrIndex: 0, keys: [], liveModels: [] }
       },
       stats: {
         totalRequests: 0,
@@ -122,13 +146,10 @@
       }
     };
 
-    // Migrate legacy single NVIDIA key if present
     try {
       const legacyKey = localStorage.getItem('NVIDIA_NIM_API_KEY');
-      const legacyModel = localStorage.getItem('NVIDIA_NIM_MODEL');
       if (legacyKey && legacyKey.trim()) {
         config.providers.nvidia.keys.push(createKeyEntry(legacyKey.trim(), 'Migrated NVIDIA Key'));
-        if (legacyModel) config.providers.nvidia.model = legacyModel;
       }
     } catch (e) {}
 
@@ -158,21 +179,30 @@
         return def;
       }
       const parsed = JSON.parse(raw);
-      // Ensure all 4 providers exist
       const def = createDefaultConfig();
+      let migrated = false;
+
       parsed.providers = parsed.providers || {};
       Object.keys(PROVIDER_CATALOG).forEach(pid => {
         if (!parsed.providers[pid]) {
           parsed.providers[pid] = def.providers[pid];
+          migrated = true;
         } else {
-          parsed.providers[pid].keys = Array.isArray(parsed.providers[pid].keys) ? parsed.providers[pid].keys : [];
-          if (!parsed.providers[pid].model) parsed.providers[pid].model = PROVIDER_CATALOG[pid].defaultModel;
-          if (typeof parsed.providers[pid].rrIndex !== 'number') parsed.providers[pid].rrIndex = 0;
-          if (typeof parsed.providers[pid].enabled !== 'boolean') parsed.providers[pid].enabled = true;
+          const p = parsed.providers[pid];
+          p.keys = Array.isArray(p.keys) ? p.keys : [];
+          p.liveModels = Array.isArray(p.liveModels) ? p.liveModels : [];
+          if (!p.model || RETIRED_MODELS.has(p.model)) {
+            p.model = PROVIDER_CATALOG[pid].defaultModel;
+            migrated = true;
+          }
+          if (typeof p.rrIndex !== 'number') p.rrIndex = 0;
+          if (typeof p.enabled !== 'boolean') p.enabled = true;
         }
       });
+
       if (!parsed.stats) parsed.stats = def.stats;
       if (!parsed.strategy) parsed.strategy = 'auto:balanced';
+      if (migrated) saveConfig(parsed);
       return parsed;
     } catch (e) {
       return createDefaultConfig();
@@ -185,7 +215,6 @@
     } catch (e) {
       console.warn('Could not save router config to localStorage:', e);
     }
-    // Optional background sync to local Windows launcher.py disk storage if running locally
     if (window.location.protocol.startsWith('http') &&
         (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')) {
       fetch('/api/config', {
@@ -205,11 +234,9 @@
           const data = await res.json();
           if (data && data.providers) {
             const local = loadConfig();
-            const localCount = countActiveKeys(local);
-            const serverCount = countActiveKeys(data);
-            if (serverCount > 0 && localCount === 0) {
+            if (countActiveKeys(data) > 0 && countActiveKeys(local) === 0) {
               localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-              return data;
+              return loadConfig();
             }
           }
         }
@@ -219,20 +246,13 @@
   }
 
   function loadLogs() {
-    try {
-      return JSON.parse(localStorage.getItem(LOGS_KEY) || '[]');
-    } catch (e) {
-      return [];
-    }
+    try { return JSON.parse(localStorage.getItem(LOGS_KEY) || '[]'); } catch (e) { return []; }
   }
 
   function addLog(entry) {
     try {
       const logs = loadLogs();
-      logs.unshift({
-        time: new Date().toLocaleTimeString(),
-        ...entry
-      });
+      logs.unshift({ time: new Date().toLocaleTimeString(), ...entry });
       localStorage.setItem(LOGS_KEY, JSON.stringify(logs.slice(0, 40)));
     } catch (e) {}
   }
@@ -265,19 +285,98 @@
     return diff > 0 ? diff : 0;
   }
 
-  // Build ordered list of { providerId, keyObj, model } attempts like FreeLLMAPI
+  function hasProxyAvailable() {
+    return window.location.protocol === 'http:' || window.location.protocol === 'https:';
+  }
+
+  function getSafeReferer() {
+    const origin = window.location.origin;
+    if (!origin || origin === 'null' || !origin.startsWith('http')) {
+      return 'https://kelsila.vercel.app';
+    }
+    return origin;
+  }
+
+  // Live Model Discovery for any provider
+  async function fetchLiveModels(providerId) {
+    const config = loadConfig();
+    const meta = PROVIDER_CATALOG[providerId];
+    const pCfg = config.providers[providerId];
+    const firstKey = (pCfg.keys.find(k => k.enabled && k.key) || pCfg.keys[0] || {}).key || '';
+
+    let url = meta.modelsEndpoint;
+    const headers = {};
+
+    if (meta.type === 'google') {
+      if (!firstKey) throw new Error('Add a Google AI Studio key first to fetch live Gemini models.');
+      url = `${meta.modelsEndpoint}?key=${encodeURIComponent(firstKey)}`;
+    } else if (firstKey) {
+      headers['Authorization'] = `Bearer ${firstKey}`;
+    }
+
+    let res;
+    if (meta.needsProxyInBrowser && hasProxyAvailable()) {
+      res = await fetch('/api/proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetUrl: url, method: 'GET', headers })
+      });
+    } else {
+      res = await fetch(url, { method: 'GET', headers });
+    }
+
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      throw new Error(`HTTP ${res.status}: ${txt.slice(0, 120) || res.statusText}`);
+    }
+
+    const data = await res.json();
+    let discovered = [];
+
+    if (meta.type === 'google') {
+      discovered = (data.models || [])
+        .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+        .map(m => m.name.replace(/^models\//, ''))
+        .filter(id => id.includes('gemini') || id.includes('gemma'))
+        .slice(0, 25)
+        .map(id => ({ id, label: `${id} (Live)` }));
+    } else if (providerId === 'openrouter') {
+      discovered = [{ id: 'openrouter/free', label: 'OpenRouter Auto Free (Recommended)' }].concat(
+        (data.data || [])
+          .map(m => m.id)
+          .filter(id => id.endsWith(':free'))
+          .slice(0, 25)
+          .map(id => ({ id, label: `${id} (Live)` }))
+      );
+    } else {
+      discovered = (data.data || [])
+        .map(m => m.id)
+        .filter(id => !/embed|whisper|guard|tts|clip|detector|calibration|starcoder/i.test(id))
+        .slice(0, 25)
+        .map(id => ({ id, label: `${id} (Live)` }));
+    }
+
+    if (discovered.length) {
+      pCfg.liveModels = discovered;
+      if (!discovered.some(m => m.id === pCfg.model)) {
+        pCfg.model = discovered[0].id;
+      }
+      saveConfig(config);
+    }
+    return discovered;
+  }
+
   function buildAttemptChain(config, overrideProviderId = null, overrideKeyId = null) {
     const now = Date.now();
     const attempts = [];
     const coolingAttempts = [];
 
-    // Direct single-key test mode
     if (overrideProviderId && overrideKeyId) {
       const pCfg = config.providers[overrideProviderId];
       if (!pCfg) return [];
       const kObj = pCfg.keys.find(k => k.id === overrideKeyId);
       if (!kObj) return [];
-      return [{ providerId: overrideProviderId, keyObj: kObj, model: pCfg.model }];
+      return [{ providerId: overrideProviderId, keyObj: kObj, model: pCfg.model || PROVIDER_CATALOG[overrideProviderId].defaultModel }];
     }
 
     let providerOrder = [];
@@ -304,7 +403,6 @@
       const enabledKeys = pCfg.keys.filter(k => k.enabled && k.key);
       if (!enabledKeys.length) continue;
 
-      // Round-robin rotation within the SAME provider's multiple keys!
       const rrStart = (pCfg.rrIndex || 0) % enabledKeys.length;
       const rotatedKeys = [...enabledKeys.slice(rrStart), ...enabledKeys.slice(0, rrStart)];
 
@@ -318,16 +416,47 @@
       }
     }
 
-    // If all keys are technically cooling down, still try the ones closest to expiry as last resort
     coolingAttempts.sort((a, b) => (a.keyObj.cooldownUntil || 0) - (b.keyObj.cooldownUntil || 0));
     return [...attempts, ...coolingAttempts];
   }
 
-  function hasProxyAvailable() {
-    return window.location.protocol === 'http:' || window.location.protocol === 'https:';
+  async function executeHttpCall(url, headers, bodyObj, useProxy) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 22000);
+    try {
+      let response;
+      if (useProxy && hasProxyAvailable()) {
+        response = await fetch('/api/proxy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({ targetUrl: url, method: 'POST', headers, payload: bodyObj })
+        });
+      } else {
+        response = await fetch(url, {
+          method: 'POST',
+          headers,
+          signal: controller.signal,
+          body: JSON.stringify(bodyObj)
+        });
+      }
+      clearTimeout(timeoutId);
+      return response;
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        const tErr = new Error('Request timed out (22s)');
+        tErr.status = 408;
+        throw tErr;
+      }
+      if (!hasProxyAvailable() && useProxy) {
+        throw new Error('CORS blocked on file:// — run run_coach_kiosk.bat or open on Vercel for NVIDIA NIM');
+      }
+      throw err;
+    }
   }
 
-  async function callSingleProvider({ providerId, keyObj, model, messages, temperature = 0.5, maxTokens = 450, jsonMode = true }) {
+  async function callSingleProvider({ providerId, keyObj, model, messages, temperature = 0.5, maxTokens = 550, jsonMode = true }) {
     const meta = PROVIDER_CATALOG[providerId];
     const startTime = performance.now();
 
@@ -346,7 +475,7 @@
         contents: chatMsgs,
         generationConfig: {
           temperature,
-          maxOutputTokens: maxTokens
+          maxOutputTokens: Math.max(maxTokens, 256)
         }
       };
       if (systemMsg) {
@@ -356,100 +485,72 @@
         bodyObj.generationConfig.responseMimeType = 'application/json';
       }
     } else {
-      // OpenAI-compatible (NVIDIA NIM, Groq, OpenRouter)
       url = meta.endpoint;
       headers['Authorization'] = `Bearer ${keyObj.key}`;
       if (providerId === 'openrouter') {
-        headers['HTTP-Referer'] = window.location.origin || 'https://kerala-english-coach.vercel.app';
+        headers['HTTP-Referer'] = getSafeReferer();
         headers['X-Title'] = 'Kerala AI English Coach Statue';
       }
       bodyObj = {
         model,
         messages,
         temperature,
-        max_tokens: maxTokens
+        max_tokens: Math.max(maxTokens, 200)
       };
-      if (jsonMode && (providerId === 'groq' || providerId === 'nvidia')) {
+      if (jsonMode && providerId === 'groq') {
         bodyObj.response_format = { type: 'json_object' };
       }
     }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 18000);
+    let response = await executeHttpCall(url, headers, bodyObj, meta.needsProxyInBrowser);
 
-    try {
-      let response;
-      // Use /api/proxy for NVIDIA NIM (avoids browser CORS blocks on Vercel & Windows launcher.py)
-      if (meta.needsProxyInBrowser && hasProxyAvailable()) {
-        response = await fetch('/api/proxy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal,
-          body: JSON.stringify({
-            targetUrl: url,
-            headers,
-            payload: bodyObj
-          })
-        });
-      } else {
-        response = await fetch(url, {
-          method: 'POST',
-          headers,
-          signal: controller.signal,
-          body: JSON.stringify(bodyObj)
-        });
-      }
+    // Smart retry: if a model rejects response_format/responseMimeType with HTTP 400, strip it and retry once
+    if (response.status === 400 && (bodyObj.response_format || bodyObj.generationConfig?.responseMimeType)) {
+      const retryBody = JSON.parse(JSON.stringify(bodyObj));
+      delete retryBody.response_format;
+      if (retryBody.generationConfig) delete retryBody.generationConfig.responseMimeType;
+      response = await executeHttpCall(url, headers, retryBody, meta.needsProxyInBrowser);
+    }
 
-      clearTimeout(timeoutId);
-      const latencyMs = Math.round(performance.now() - startTime);
+    const latencyMs = Math.round(performance.now() - startTime);
 
-      if (!response.ok) {
-        let errText = '';
-        try { errText = await response.text(); } catch (e) {}
-        const err = new Error(`HTTP ${response.status}: ${errText.slice(0, 180) || response.statusText}`);
-        err.status = response.status;
-        err.latencyMs = latencyMs;
-        throw err;
-      }
-
-      const data = await response.json();
-      let content = '';
-
-      if (meta.type === 'google') {
-        content = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      } else {
-        content = data?.choices?.[0]?.message?.content || '';
-      }
-
-      if (!content) {
-        throw new Error('Empty response content from provider');
-      }
-
-      return {
-        content,
-        providerId,
-        providerName: meta.name,
-        model,
-        keyId: keyObj.id,
-        keyLabel: keyObj.label,
-        latencyMs
-      };
-    } catch (err) {
-      clearTimeout(timeoutId);
-      if (err.name === 'AbortError') {
-        const tErr = new Error('Request timed out (18s)');
-        tErr.status = 408;
-        throw tErr;
-      }
+    if (!response.ok) {
+      let errText = '';
+      try { errText = await response.text(); } catch (e) {}
+      const err = new Error(`HTTP ${response.status}: ${errText.slice(0, 220) || response.statusText}`);
+      err.status = response.status;
+      err.latencyMs = latencyMs;
       throw err;
     }
+
+    const data = await response.json();
+    let content = '';
+
+    if (meta.type === 'google') {
+      const parts = data?.candidates?.[0]?.content?.parts || [];
+      content = parts.filter(p => !p.thought && p.text).map(p => p.text).join('').trim()
+             || parts.map(p => p.text || '').join('').trim();
+    } else {
+      const msg = data?.choices?.[0]?.message || {};
+      content = (msg.content || msg.reasoning_content || msg.reasoning || '').trim();
+    }
+
+    if (!content) {
+      throw new Error('Empty response content from provider (model may need higher max_tokens)');
+    }
+
+    return {
+      content,
+      providerId,
+      providerName: meta.name,
+      model,
+      keyId: keyObj.id,
+      keyLabel: keyObj.label,
+      latencyMs
+    };
   }
 
-  /**
-   * Main Unified Router Chat Call (FreeLLMAPI behavior)
-   * Rotates keys within each provider & automatically fails over across keys/providers!
-   */
-  async function chat({ messages, temperature = 0.5, maxTokens = 450, jsonMode = true, overrideProviderId = null, overrideKeyId = null }) {
+  async function chat({ messages, temperature = 0.5, maxTokens = 550, jsonMode = true, overrideProviderId = null, overrideKeyId = null }) {
     const config = loadConfig();
     const attempts = buildAttemptChain(config, overrideProviderId, overrideKeyId);
 
@@ -477,14 +578,12 @@
           jsonMode
         });
 
-        // Advance per-provider round-robin cursor to next key for the next request
         const enabledKeys = pCfg.keys.filter(k => k.enabled && k.key);
         if (enabledKeys.length > 0) {
           const usedPos = enabledKeys.findIndex(k => k.id === keyObj.id);
           pCfg.rrIndex = (usedPos + 1) % enabledKeys.length;
         }
 
-        // Update success telemetry & clear cooldown
         keyObj.requests = (keyObj.requests || 0) + 1;
         keyObj.cooldownUntil = 0;
         keyObj.lastError = '';
@@ -508,7 +607,6 @@
       } catch (err) {
         const status = err.status || 0;
         const baseCooldown = config.cooldownSeconds || 60;
-        // Longer cooldown for invalid auth/quota (401/402/403), standard cooldown for 429/5xx/network
         const cooldownSec = (status === 401 || status === 402 || status === 403) ? 300 : baseCooldown;
 
         keyObj.errors = (keyObj.errors || 0) + 1;
@@ -524,17 +622,16 @@
           model,
           keyLabel: `${keyObj.label} (${maskKey(keyObj.key)})`,
           latencyMs: err.latencyMs || 0,
-          failover: `Cooldown ${cooldownSec}s (${err.message.slice(0, 70)})`
+          failover: `Cooldown ${cooldownSec}s (${err.message.slice(0, 90)})`
         });
       }
     }
 
-    const finalErr = new Error('All configured API keys failed or hit rate limits: ' + errors.join(' | '));
+    const finalErr = new Error('All configured API keys failed: ' + errors.join(' | '));
     finalErr.code = 'ALL_FAILED';
     throw finalErr;
   }
 
-  // Expose public API
   global.FreeLLMRouter = {
     ADMIN_PASSKEY,
     PROVIDER_CATALOG,
@@ -545,6 +642,7 @@
     maskKey,
     countActiveKeys,
     getKeyCooldownRemaining,
+    fetchLiveModels,
     loadLogs,
     clearLogs,
     chat

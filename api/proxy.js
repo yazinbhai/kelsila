@@ -1,7 +1,7 @@
 /**
  * Vercel Serverless CORS Proxy for Kerala AI English Coach (FreeLLMAPI Router)
- * Allows browser clients to safely call NVIDIA NIM, Groq, Google AI Studio, and OpenRouter
- * without CORS restrictions. Strictly allowlisted to official AI provider hosts only.
+ * Supports POST (chat completions) and GET (live model list discovery)
+ * Strictly allowlisted to official AI provider hosts only.
  */
 
 const ALLOWED_HOSTS = new Set([
@@ -24,7 +24,9 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const { targetUrl, headers = {}, payload = {} } = req.body || {};
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+    const { targetUrl, method = 'POST', headers = {}, payload = null } = body;
+
     if (!targetUrl || typeof targetUrl !== 'string') {
       return res.status(400).json({ error: 'Missing targetUrl' });
     }
@@ -34,21 +36,23 @@ module.exports = async function handler(req, res) {
       return res.status(403).json({ error: 'Target host not allowed' });
     }
 
-    const forwardHeaders = { 'Content-Type': 'application/json' };
+    const safeMethod = method === 'GET' ? 'GET' : 'POST';
+    const forwardHeaders = {};
+    if (safeMethod === 'POST') forwardHeaders['Content-Type'] = 'application/json';
     if (headers['Authorization']) forwardHeaders['Authorization'] = headers['Authorization'];
     if (headers['HTTP-Referer']) forwardHeaders['HTTP-Referer'] = headers['HTTP-Referer'];
     if (headers['X-Title']) forwardHeaders['X-Title'] = headers['X-Title'];
 
-    const upstream = await fetch(targetUrl, {
-      method: 'POST',
-      headers: forwardHeaders,
-      body: JSON.stringify(payload)
-    });
+    const fetchOpts = { method: safeMethod, headers: forwardHeaders };
+    if (safeMethod === 'POST' && payload !== null) {
+      fetchOpts.body = JSON.stringify(payload);
+    }
 
+    const upstream = await fetch(targetUrl, fetchOpts);
     const text = await upstream.text();
     res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json');
     return res.status(upstream.status).send(text);
   } catch (err) {
     return res.status(502).json({ error: err.message || 'Upstream proxy error' });
   }
-}
+};
