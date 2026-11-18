@@ -755,7 +755,7 @@
                 <div class="key-meta">
                   <div class="key-label-line">
                     <span>#${idx + 1} ${escapeHtml(kObj.label)}</span>
-                    <span class="status-pill ${pillClass}">${pillText}</span>
+                    <span class="status-pill ${pillClass}" data-status-pill="${pid}:${kObj.id}">${pillText}</span>
                   </div>
                   <div class="key-masked">
                     ${FreeLLMRouter.maskKey(kObj.key)} • Calls: ${kObj.requests || 0} • Err: ${kObj.errors || 0}
@@ -803,8 +803,8 @@
               <a href="#" onclick="event.preventDefault(); toggleBulkBox('${pid}')" style="color:#7dd3fc; text-decoration:none;">+ Bulk Paste Multiple</a>
             </div>
             <div class="add-key-row">
-              <input type="text" id="label-${pid}" class="input" placeholder="Label (e.g. Key 1)" />
-              <input type="password" id="key-${pid}" class="input" placeholder="${meta.keyPlaceholder}" />
+              <input type="text" id="label-${pid}" class="input" placeholder="Label (e.g. Key 1)" autocomplete="off" />
+              <input type="text" id="key-${pid}" class="input" style="font-family:monospace;" placeholder="${meta.keyPlaceholder}" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter'){event.preventDefault();addSingleKey('${pid}');}" />
               <button class="btn btn-primary" onclick="addSingleKey('${pid}')">+ Add</button>
             </div>
             <div id="bulk-${pid}" style="display:none; margin-top:6px;">
@@ -1007,10 +1007,31 @@
       reader.readAsText(file);
     }
 
-    // Refresh cooldown counters every 5 seconds while dashboard is open
+    // Update only cooldown status pills in-place every 5s (never wipes inputs!)
+    function refreshCooldownBadges() {
+      const latest = FreeLLMRouter.loadConfig();
+      Object.keys(latest.providers || {}).forEach(pid => {
+        (latest.providers[pid].keys || []).forEach(kObj => {
+          const pill = document.querySelector(`[data-status-pill="${pid}:${kObj.id}"]`);
+          if (!pill) return;
+          const cool = FreeLLMRouter.getKeyCooldownRemaining(kObj);
+          if (!kObj.enabled) {
+            pill.className = 'status-pill st-off';
+            pill.innerText = 'Disabled';
+          } else if (cool > 0) {
+            pill.className = 'status-pill st-cool';
+            pill.innerText = `Cooldown ${cool}s`;
+          } else {
+            pill.className = 'status-pill st-ready';
+            pill.innerText = 'Ready';
+          }
+        });
+      });
+    }
+
     setInterval(() => {
       if (document.getElementById('adminApp').style.display === 'block') {
-        renderProviders();
+        refreshCooldownBadges();
       }
     }, 5000);
 
