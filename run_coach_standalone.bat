@@ -6,7 +6,16 @@ echo ================================================================
 echo    Starting Kerala AI English Coach Statue (Standalone)
 echo ================================================================
 
-REM 1. Set Windows power state to ALWAYS AWAKE using native Win32 API via PowerShell
+REM 0. If Python is installed, use launcher.py for neural MP3 voice (/api/tts), CORS proxy, and persistent config.json
+where python >nul 2>nul
+if %errorlevel%==0 (
+    echo [+] Python detected - launching full Kiosk Server with Neural Indian English TTS...
+    python launcher.py
+    pause
+    exit /b 0
+)
+
+REM 1. Fallback when Python is not installed: Set Windows power state to ALWAYS AWAKE using native Win32 API via PowerShell
 start /b powershell -NoProfile -Command ^
   "$sig = '[DllImport(\"kernel32.dll\")] public static extern uint SetThreadExecutionState(uint esFlags);'; " ^
   "$type = Add-Type -MemberDefinition $sig -Name 'WinPower' -Namespace 'Win32' -PassThru; " ^

@@ -10,15 +10,24 @@ Kerala AI English Coach Statue (FreeLLMAPI Multi-Provider) - Windows Launcher
 """
 
 import os
+import re
 import json
 import time
 import ctypes
+import asyncio
 import threading
 import subprocess
 import urllib.request
+import urllib.parse
 import urllib.error
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+
+try:
+    import edge_tts
+    HAS_EDGE_TTS = True
+except ImportError:
+    HAS_EDGE_TTS = False
 
 PORT = 8686
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -61,6 +70,50 @@ def restore_sleep():
         pass
 
 
+def synthesize_mp3(text):
+    """Generate real Indian English MP3 audio using edge-tts (preferred) or Google TTS fallback."""
+    clean = re.sub(r"[*_#`~]", "", str(text or "")).strip()
+    if not clean:
+        return b""
+
+    if HAS_EDGE_TTS:
+        try:
+            async def _gen():
+                comm = edge_tts.Communicate(clean, "en-IN-NeerjaNeural")
+                buf = bytearray()
+                async for chunk in comm.stream():
+                    if chunk["type"] == "audio":
+                        buf.extend(chunk["data"])
+                return bytes(buf)
+
+            audio = asyncio.run(_gen())
+            if audio:
+                return audio
+        except Exception as e:
+            print(f"[!] edge-tts fallback triggered: {e}")
+
+    # Zero-dependency fallback: Google Translate en-IN MP3
+    sentences = re.findall(r"[^.!?]+[.!?]*\s*", clean) or [clean]
+    chunks, cur = [], ""
+    for s in sentences:
+        if len(cur) + len(s) > 175 and cur.strip():
+            chunks.append(cur.strip())
+            cur = s
+        else:
+            cur += s
+    if cur.strip():
+        chunks.append(cur.strip())
+
+    merged = bytearray()
+    for ch in chunks[:8]:
+        q = urllib.parse.quote(ch)
+        url = f"https://translate.google.com/translate_tts?ie=UTF-8&tl=en-IN&client=tw-ob&q={q}"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            merged.extend(resp.read())
+    return bytes(merged)
+
+
 class CoachHTTPHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=WEB_DIR, **kwargs)
@@ -77,11 +130,28 @@ class CoachHTTPHandler(SimpleHTTPRequestHandler):
         self.wfile.write(raw)
 
     def do_GET(self):
-        if self.path == "/admin":
+        parsed = urlparse(self.path)
+        if parsed.path == "/admin":
             self.path = "/admin.html"
             return super().do_GET()
 
-        if self.path == "/api/config":
+        if parsed.path == "/api/tts":
+            qs = parse_qs(parsed.query)
+            text = (qs.get("text") or [""])[0]
+            try:
+                mp3 = synthesize_mp3(text)
+                if not mp3:
+                    return self._send_json(400, {"error": "Empty text"})
+                self.send_response(200)
+                self.send_header("Content-Type", "audio/mpeg")
+                self.send_header("Content-Length", str(len(mp3)))
+                self.end_headers()
+                self.wfile.write(mp3)
+            except Exception as e:
+                return self._send_json(500, {"error": str(e)})
+            return
+
+        if parsed.path == "/api/config":
             if os.path.exists(CONFIG_PATH):
                 try:
                     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
@@ -96,6 +166,21 @@ class CoachHTTPHandler(SimpleHTTPRequestHandler):
     def do_POST(self):
         content_len = int(self.headers.get("Content-Length", 0))
         raw_body = self.rfile.read(content_len) if content_len > 0 else b"{}"
+
+        if self.path == "/api/tts":
+            try:
+                req_data = json.loads(raw_body.decode("utf-8"))
+                mp3 = synthesize_mp3(req_data.get("text", ""))
+                if not mp3:
+                    return self._send_json(400, {"error": "Empty text"})
+                self.send_response(200)
+                self.send_header("Content-Type", "audio/mpeg")
+                self.send_header("Content-Length", str(len(mp3)))
+                self.end_headers()
+                self.wfile.write(mp3)
+            except Exception as e:
+                return self._send_json(500, {"error": str(e)})
+            return
 
         if self.path == "/api/config":
             try:

@@ -880,10 +880,14 @@
       <span>•</span>
       <span>Skill: <strong>Tianmind English Coach Dual-Action</strong></span>
     </div>
-    <div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="btn btn-secondary" onclick="resetConversation()">🔄 New Chat</button>
       <button class="btn btn-primary" onclick="simulateRandomKeralaStudent()">🎲 Test Student Voice</button>
     </div>
   </footer>
+
+  <!-- Real HTML5 Audio Player for Crystal-Clear Indian English MP3 Voice (/api/tts) -->
+  <audio id="coachAudio" playsinline preload="auto" style="display:none;"></audio>
 
   <!-- Load Shared FreeLLMAPI Multi-Provider & Multi-Key Router -->
   <script src="llm-router.js"></script>
@@ -938,42 +942,43 @@
     }
     setTimeout(triggerBlink, 2500);
 
-    // --- Speech Synthesis Setup (Prefer reliable local Indian English voice) ---
+    // --- Real HTML5 Audio + Fallback Speech Synthesis Setup ---
+    const coachAudio = document.getElementById('coachAudio');
     let audioUnlocked = false;
     let lastSpokenText = '';
-    let ttsKeepAliveTimer = null;
+    let activeAudioUrl = null;
+    const isAndroid = /Android/i.test(navigator.userAgent || '');
+
+    // Tiny valid 1-sample silent WAV data URI for cleanly unlocking HTML5 <audio> on iOS/Android
+    const SILENT_WAV_URI = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
 
     function setupVoices() {
       if (!synth) return;
       const voices = synth.getVoices();
       if (!voices.length) return;
-      // Prefer localService voices first to avoid Chrome remote-voice silent hangs
       selectedVoice =
         voices.find(v => v.lang === 'en-IN' && v.localService) ||
         voices.find(v => v.lang.toLowerCase().includes('en-in') && v.localService) ||
-        voices.find(v => v.lang === 'en-IN') ||
-        voices.find(v => v.lang.toLowerCase().includes('en-in')) ||
-        voices.find(v => v.name.toLowerCase().includes('india')) ||
         voices.find(v => v.lang.startsWith('en') && v.localService) ||
         voices.find(v => v.lang.startsWith('en')) ||
-        voices[0];
+        null;
     }
     if (synth) {
       setupVoices();
       synth.onvoiceschanged = setupVoices;
     }
 
-    // Must be called synchronously inside a user tap/click so async fetch() replies can speak on mobile Chrome/Safari!
+    // Unlock HTML5 <audio> cleanly on first user tap (never uses volume=0 speechSynthesis primer!)
     function unlockSpeechSynthesis() {
-      if (!synth || audioUnlocked) return;
+      if (audioUnlocked) return;
+      audioUnlocked = true;
       try {
-        setupVoices();
-        const primer = new SpeechSynthesisUtterance(' ');
-        primer.volume = 0;
-        primer.rate = 2;
-        window._primerUtterance = primer;
-        synth.speak(primer);
-        audioUnlocked = true;
+        if (coachAudio && coachAudio.paused) {
+          coachAudio.src = SILENT_WAV_URI;
+          coachAudio.volume = 1.0;
+          const p = coachAudio.play();
+          if (p && p.catch) p.catch(() => { audioUnlocked = false; });
+        }
       } catch (e) {}
     }
 
@@ -1003,7 +1008,7 @@
     });
     requestWakeLock();
 
-    // --- ADVANCED 7-VISEME PHONETIC LIP-SYNC ENGINE ---
+    // --- ADVANCED 7-VISEME PHONETIC LIP-SYNC ENGINE (Audio-Time Locked!) ---
     class LipSyncEngine {
       constructor() {
         this.visemes = {
@@ -1017,7 +1022,7 @@
         };
         this.jaw = document.getElementById('jawGroup');
         this.stepTimer = null;
-        this.watchdog = null;
+        this.rafId = null;
         this.activeViseme = 'closed';
         this.timeline = [];
         this.cursor = 0;
@@ -1041,6 +1046,7 @@
       buildTimeline(text) {
         const frames = [];
         const clean = (text || '');
+        let totalWeight = 0;
         for (let i = 0; i < clean.length; i++) {
           const ch = clean[i].toLowerCase();
           const next = (clean[i + 1] || '').toLowerCase();
@@ -1077,13 +1083,49 @@
 
           if (frames.length > 0 && frames[frames.length - 1].viseme === viseme && viseme === 'mid') {
             frames[frames.length - 1].duration += 30;
+            totalWeight += 30;
             continue;
           }
-          frames.push({ charIndex: i, viseme, duration });
+          frames.push({ charIndex: i, viseme, duration, startWeight: totalWeight });
+          totalWeight += duration;
         }
+        frames._totalWeight = totalWeight || 1;
         return frames;
       }
 
+      // True 60fps audio-locked lip-sync for HTML5 <audio> MP3 playback!
+      startWithAudio(audioEl, text) {
+        this.stop();
+        this.isRunning = true;
+        this.timeline = this.buildTimeline(text);
+        const totalW = this.timeline._totalWeight;
+
+        const loop = () => {
+          if (!this.isRunning) return;
+          if (!audioEl || audioEl.paused || audioEl.ended) {
+            this.setViseme('closed');
+            return;
+          }
+          const dur = audioEl.duration;
+          if (dur && isFinite(dur) && dur > 0) {
+            const progress = Math.min(1, Math.max(0, audioEl.currentTime / dur));
+            const targetW = progress * totalW;
+            let chosen = 'closed';
+            for (let i = 0; i < this.timeline.length; i++) {
+              if (this.timeline[i].startWeight <= targetW) {
+                chosen = this.timeline[i].viseme;
+              } else {
+                break;
+              }
+            }
+            this.setViseme(chosen);
+          }
+          this.rafId = requestAnimationFrame(loop);
+        };
+        this.rafId = requestAnimationFrame(loop);
+      }
+
+      // Fallback lip-sync for browser speechSynthesis
       start(utterance, text, rate = 0.92) {
         this.stop();
         this.isRunning = true;
@@ -1115,12 +1157,6 @@
         };
 
         tick();
-
-        this.watchdog = setInterval(() => {
-          if (this.isRunning && window.speechSynthesis && !window.speechSynthesis.speaking) {
-            this.stop();
-          }
-        }, 250);
       }
 
       stop() {
@@ -1129,9 +1165,9 @@
           clearTimeout(this.stepTimer);
           this.stepTimer = null;
         }
-        if (this.watchdog) {
-          clearInterval(this.watchdog);
-          this.watchdog = null;
+        if (this.rafId) {
+          cancelAnimationFrame(this.rafId);
+          this.rafId = null;
         }
         this.setViseme('closed');
       }
@@ -1139,7 +1175,7 @@
 
     const lipSync = new LipSyncEngine();
 
-    // --- Clean text & split into Chrome-safe speech chunks (<180 chars) ---
+    // --- Clean text & split into safe speech chunks ---
     function sanitizeForSpeech(text) {
       return String(text || '')
         .replace(/[*_#`~]/g, '')
@@ -1153,7 +1189,7 @@
       const chunks = [];
       let current = '';
       for (const s of sentences) {
-        if ((current + s).length > 175 && current.trim()) {
+        if ((current + s).length > 165 && current.trim()) {
           chunks.push(current.trim());
           current = s;
         } else {
@@ -1164,17 +1200,35 @@
       return chunks.length ? chunks : [text];
     }
 
-    // --- Bulletproof Speech Output (Fixes Chrome/Android/Edge silent TTS bugs) ---
+    // --- PRIMARY REAL MP3 AUDIO TTS (/api/tts) + CLEAN BROWSER FALLBACK ---
     let speakSessionId = 0;
 
-    function speak(text, onComplete) {
+    function stopCurrentAudio() {
+      try {
+        if (coachAudio) {
+          coachAudio.pause();
+          coachAudio.onplaying = null;
+          coachAudio.onended = null;
+          coachAudio.onerror = null;
+        }
+        if (activeAudioUrl) {
+          URL.revokeObjectURL(activeAudioUrl);
+          activeAudioUrl = null;
+        }
+        if (synth && (synth.speaking || synth.pending)) {
+          synth.cancel();
+        }
+      } catch (e) {}
+    }
+
+    async function speak(text, onComplete) {
       const cleanText = sanitizeForSpeech(text);
-      if (!cleanText || !synth) return;
+      if (!cleanText) return;
       lastSpokenText = cleanText;
 
       const mySession = ++speakSessionId;
       pauseRecognitionForSpeech();
-      clearInterval(ttsKeepAliveTimer);
+      stopCurrentAudio();
       lipSync.stop();
 
       isSpeaking = true;
@@ -1183,15 +1237,8 @@
       stateBadge.className = 'statue-state-badge state-speaking';
       stateBadge.innerText = '🗣️ Coach Arya Answering...';
 
-      if (!selectedVoice) setupVoices();
-
-      const chunks = splitIntoSpeechChunks(cleanText);
-      let chunkIndex = 0;
-      let retriedDefaultVoice = false;
-
       const finishSpeaking = () => {
         if (mySession !== speakSessionId) return;
-        clearInterval(ttsKeepAliveTimer);
         lipSync.stop();
         isSpeaking = false;
         mascotWrapper.classList.remove('speaking');
@@ -1202,7 +1249,78 @@
         if (onComplete) onComplete();
       };
 
-      const speakNextChunk = (useDefaultVoice = false) => {
+      // Give Android/Windows 250ms to release the microphone audio focus back to the speaker!
+      await new Promise(r => setTimeout(r, 250));
+      if (mySession !== speakSessionId) return;
+
+      // STRATEGY 1: Real Indian English MP3 via /api/tts (Works on Vercel & Windows launcher.py!)
+      if (window.location.protocol === 'http:' || window.location.protocol === 'https:') {
+        try {
+          const resp = await fetch('/api/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: cleanText, lang: 'en-IN' })
+          });
+
+          if (mySession !== speakSessionId) return;
+
+          if (resp.ok && (resp.headers.get('content-type') || '').includes('audio')) {
+            const blob = await resp.blob();
+            if (mySession !== speakSessionId) return;
+            if (blob.size > 500) {
+              activeAudioUrl = URL.createObjectURL(blob);
+              coachAudio.src = activeAudioUrl;
+              coachAudio.volume = 1.0;
+
+              coachAudio.onplaying = () => {
+                if (mySession !== speakSessionId) return;
+                lipSync.startWithAudio(coachAudio, cleanText);
+              };
+              coachAudio.onended = () => {
+                finishSpeaking();
+              };
+              coachAudio.onerror = () => {
+                if (mySession === speakSessionId) {
+                  speakWithBrowserFallback(cleanText, mySession, finishSpeaking);
+                }
+              };
+
+              try {
+                await coachAudio.play();
+                return; // Real MP3 audio playing!
+              } catch (playErr) {
+                console.warn('HTML5 audio autoplay blocked:', playErr.name);
+                if (playErr.name === 'NotAllowedError') {
+                  lipSync.stop();
+                  isSpeaking = false;
+                  mascotWrapper.classList.remove('speaking');
+                  stateBadge.className = 'statue-state-badge state-speaking';
+                  stateBadge.innerText = '🔇 Tap "🔊 Replay" once to unlock speaker audio!';
+                  return;
+                }
+              }
+            }
+          }
+        } catch (ttsErr) {
+          console.warn('/api/tts unavailable, using browser speech fallback:', ttsErr);
+        }
+      }
+
+      if (mySession !== speakSessionId) return;
+      // STRATEGY 2: Clean Browser speechSynthesis fallback (for offline / file://)
+      speakWithBrowserFallback(cleanText, mySession, finishSpeaking);
+    }
+
+    function speakWithBrowserFallback(cleanText, mySession, finishSpeaking) {
+      if (!synth) {
+        finishSpeaking();
+        return;
+      }
+
+      const chunks = splitIntoSpeechChunks(cleanText);
+      let chunkIndex = 0;
+
+      const speakNextChunk = () => {
         if (mySession !== speakSessionId) return;
         if (chunkIndex >= chunks.length) {
           finishSpeaking();
@@ -1211,58 +1329,39 @@
 
         const chunkText = chunks[chunkIndex];
         const utterance = new SpeechSynthesisUtterance(chunkText);
-        // Pin utterance globally so Chrome GC never kills it mid-speech!
         window._activeUtterance = utterance;
 
+        // On Android, leaving voice = null uses the OS default TTS reliably (never picks a silent voice!)
         utterance.lang = 'en-IN';
-        if (!useDefaultVoice && selectedVoice) {
+        if (!isAndroid && selectedVoice) {
           utterance.voice = selectedVoice;
           utterance.lang = selectedVoice.lang || 'en-IN';
         }
         utterance.rate = 0.92;
-        utterance.pitch = 1.02;
+        utterance.pitch = 1.0;
         utterance.volume = 1.0;
 
-        let lipSyncStarted = false;
-        const beginLipSync = () => {
+        utterance.onstart = () => {
           if (mySession !== speakSessionId) return;
-          if (!lipSyncStarted && isSpeaking) {
-            lipSyncStarted = true;
-            lipSync.start(utterance, chunkText, utterance.rate);
-          }
+          lipSync.start(utterance, chunkText, utterance.rate);
         };
-
-        utterance.onstart = beginLipSync;
-
         utterance.onend = () => {
           if (mySession !== speakSessionId) return;
           lipSync.stop();
           chunkIndex++;
-          speakNextChunk(useDefaultVoice);
+          speakNextChunk();
         };
-
         utterance.onerror = (e) => {
           if (mySession !== speakSessionId) return;
-          console.warn('TTS error:', e.error);
+          console.warn('Browser TTS error:', e.error);
           lipSync.stop();
-
-          // If blocked by browser autoplay before first tap, prompt 1-tap replay
           if (e.error === 'not-allowed') {
-            clearInterval(ttsKeepAliveTimer);
             isSpeaking = false;
             mascotWrapper.classList.remove('speaking');
             stateBadge.className = 'statue-state-badge state-speaking';
-            stateBadge.innerText = '🔇 Tap "🔊 Replay" to unlock Coach voice!';
+            stateBadge.innerText = '🔇 Tap "🔊 Replay" once to unlock speaker audio!';
             return;
           }
-
-          // If custom voice failed, retry once cleanly using system default voice
-          if (!useDefaultVoice && !retriedDefaultVoice && selectedVoice) {
-            retriedDefaultVoice = true;
-            setTimeout(() => speakNextChunk(true), 80);
-            return;
-          }
-
           finishSpeaking();
         };
 
@@ -1270,32 +1369,11 @@
           if (synth.paused) synth.resume();
           synth.speak(utterance);
         } catch (err) {
-          console.warn('synth.speak failed:', err);
           finishSpeaking();
-          return;
         }
-
-        setTimeout(() => {
-          if (mySession === speakSessionId && isSpeaking && !lipSyncStarted && synth.speaking) {
-            beginLipSync();
-          }
-        }, 200);
       };
 
-      // Chrome/Android keep-alive prevents 15-second pause hang
-      ttsKeepAliveTimer = setInterval(() => {
-        if (synth.speaking && !synth.paused) {
-          try { synth.resume(); } catch (e) {}
-        }
-      }, 4000);
-
-      // Avoid Chrome cancel()-then-speak() same-tick drop bug!
-      if (synth.speaking || synth.pending) {
-        try { synth.cancel(); } catch (e) {}
-        setTimeout(() => speakNextChunk(false), 80);
-      } else {
-        speakNextChunk(false);
-      }
+      speakNextChunk();
     }
 
     // --- Speech Recognition (Continuous for Statue) ---
@@ -1323,6 +1401,9 @@
         }
       };
 
+      let lastProcessedText = '';
+      let lastProcessedAt = 0;
+
       recognition.onresult = (event) => {
         if (isSpeaking || isThinking) return;
 
@@ -1345,6 +1426,15 @@
         if (finalTranscript) {
           interimIndicator.style.display = 'none';
           const cleanText = finalTranscript.trim();
+          const norm = cleanText.toLowerCase();
+          const now = Date.now();
+
+          // Deduplicate repeated Android SpeechRecognition bursts & reject statue self-echo
+          if (norm === lastProcessedText && (now - lastProcessedAt) < 3500) return;
+          if (lastSpokenText && norm.length > 8 && lastSpokenText.toLowerCase().includes(norm)) return;
+
+          lastProcessedText = norm;
+          lastProcessedAt = now;
           studentSpeechText.innerText = `"${cleanText}"`;
           handleStudentInput(cleanText);
         }
@@ -1359,7 +1449,7 @@
       recognition.onend = () => {
         isListening = false;
         if (!isSpeaking && !isThinking) {
-          setTimeout(startRecognitionSafe, 300);
+          setTimeout(startRecognitionSafe, 350);
         }
       };
     }
@@ -1378,10 +1468,11 @@
     function resumeRecognitionAfterSpeech() {
       setTimeout(() => {
         if (!isSpeaking && !isThinking) startRecognitionSafe();
-      }, 500);
+      }, 800);
     }
 
     function toggleListening() {
+      unlockSpeechSynthesis();
       if (isListening) {
         if (recognition) recognition.stop();
         micPill.classList.remove('active');
@@ -1395,11 +1486,21 @@
       }
     }
 
+    let lastTurnTime = 0;
+
+    function resetConversation() {
+      conversationHistory = [];
+      lastTurnTime = 0;
+      studentSpeechText.innerText = '"New student ready! Ask me anything in English."';
+      statueAnswerText.innerText = 'Hello! Ready for a brand new conversation. What would you like to talk about?';
+      correctionText.innerText = 'Speak to Coach Arya for live corrections!';
+      ratingBadge.innerText = 'Fresh Chat';
+    }
+
     // --- FreeLLMAPI Multi-Provider & Tianmind English Coach Dual-Action Engine ---
     function extractCoachJson(rawContent) {
       if (!rawContent) return null;
       let cleaned = rawContent.trim();
-      // Strip markdown code blocks if returned by Gemini / OpenRouter
       cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
       const firstBrace = cleaned.indexOf('{');
       const lastBrace = cleaned.lastIndexOf('}');
@@ -1423,65 +1524,64 @@
     async function handleStudentInput(studentText) {
       if (!studentText || studentText.length < 2) return;
 
+      // Auto-reset conversation if >2 minutes elapsed (new student walked up to the statue)
+      if (lastTurnTime && (Date.now() - lastTurnTime) > 120000) {
+        conversationHistory = [];
+      }
+      lastTurnTime = Date.now();
+
       isThinking = true;
       pauseRecognitionForSpeech();
       mascotWrapper.classList.remove('listening');
       stateBadge.className = 'statue-state-badge state-thinking';
       stateBadge.innerText = '🤔 Coach Arya is thinking...';
-      statueAnswerText.innerText = 'Listening to your English...';
+      statueAnswerText.innerText = 'Thinking of a helpful reply...';
 
-      // If no API Keys configured in Admin yet, fallback to friendly offline simulation
+      // If no API Keys configured in Admin yet, show clear notice instead of silently repeating!
       if (FreeLLMRouter.countActiveKeys() === 0) {
+        modelBadge.innerText = '⚠️ No API Keys (Open 🔒 Admin)';
         await simulateOfflineCoach(studentText);
         isThinking = false;
         return;
       }
 
-      // System Prompt implementing Tianmind Studio English Coach Skill for Kerala Students
-      const systemPrompt = `You are "Arya", a warm, enthusiastic AI English Coach living inside a talking statue in a Kerala school. Your mission is to help elementary and middle school Kerala students speak English naturally with confidence.
+      const systemPrompt = `You are "Arya", a warm, enthusiastic AI English Coach inside a talking statue in a Kerala school. You help Kerala students (ESL A1-B1) speak English naturally.
 
-Target Students:
-- Kerala school students (ESL beginners to intermediate, A1-B1).
-- Native language is usually Malayalam.
-- They talk to you using a microphone attached to the statue, and hear you through a speaker.
+CRITICAL RULES:
+1. DIRECTLY ANSWER what the student just asked or said! Every reply MUST be specific, fresh, and unique to their exact words. NEVER repeat previous answers or give generic filler.
+2. SPOKEN FIRST: Keep "spoken" short (2 sentences, max 35 words) so it sounds natural and crisp aloud.
+3. DUAL-ACTION COACHING (Tianmind English Coach Skill):
+   - First, answer their exact question or respond warmly to their exact statement.
+   - Second, if they made a grammar/tense/word-choice mistake, include ONE brief gentle spoken fix (e.g., "By the way, say 'I went' instead of 'I go' for yesterday!").
+   - If their English was correct, briefly praise them and ask a short follow-up question related to their topic.
 
-Pedagogical Rules (Based on Tianmind English Coach Skill):
-1. SPOKEN FIRST: Your spoken response must be conversational, warm, short (2-3 sentences maximum), and easy to understand aloud by kids.
-2. DUAL-ACTION COACHING:
-   - First, respond directly and warmly to what the student said or asked.
-   - Second, if the student made any grammatical, prepositional, or tense error (e.g., "I goes", "yesterday I go", "which standard you studying"), include ONE gentle spoken correction in natural conversational tone. Example: "By the way, instead of 'I goes', we say 'I go to school'!"
-   - If their sentence was grammatically good, praise their English enthusiastically!
-   - End with a friendly, simple question to keep the student practicing speaking.
-
-Output Format:
-You MUST respond in valid JSON ONLY (no markdown fences) with these exact keys:
+Return ONLY valid JSON (no markdown, no code blocks):
 {
-  "spoken": "The short 2-3 sentence conversational response that the statue will speak out loud via text-to-speech.",
-  "correction": "Clear explanation of mistake if any (e.g. 'Instead of \"I has a dog\", say \"I have a dog\"'). If no error, say 'Great grammar! Everything was correct.'",
-  "tip": "A quick micro-lesson or vocabulary upgrade (e.g., 'Grammar Tip: Use \"have\" with I, you, we, they, and \"has\" with he, she, it.')",
-  "student_input_rating": "Good / Needs Practice / Excellent"
+  "spoken": "Your fresh 2-sentence spoken reply directly answering the student.",
+  "correction": "Specific grammar fix, or 'Great grammar! Your sentence was correct.'",
+  "tip": "One short micro-lesson tip relevant to what they said.",
+  "student_input_rating": "Excellent / Good / Needs Practice"
 }`;
 
-      conversationHistory.push({ role: "user", content: studentText });
-      if (conversationHistory.length > 6) conversationHistory = conversationHistory.slice(-6);
+      const turnHistory = [...conversationHistory.slice(-4), { role: "user", content: studentText }];
 
       try {
         const result = await FreeLLMRouter.chat({
           messages: [
             { role: "system", content: systemPrompt },
-            ...conversationHistory
+            ...turnHistory
           ],
-          temperature: 0.5,
-          maxTokens: 450,
+          temperature: 0.7,
+          maxTokens: 700,
           jsonMode: true
         });
 
         const parsed = extractCoachJson(result.content);
         const spokenReply = (parsed && parsed.spoken) ? parsed.spoken : result.content;
 
-        conversationHistory.push({ role: "assistant", content: spokenReply });
+        // Commit turn to history ONLY after a verified successful response
+        conversationHistory = [...turnHistory, { role: "assistant", content: spokenReply }].slice(-6);
 
-        // Update UI & show active routed provider + latency
         const shortModel = result.model.includes('/') ? result.model.split('/').pop() : result.model;
         modelBadge.innerText = `${result.providerName} • ${shortModel} (${result.latencyMs}ms)`;
         statueAnswerText.innerText = spokenReply;
@@ -1495,41 +1595,44 @@ You MUST respond in valid JSON ONLY (no markdown fences) with these exact keys:
       } catch (err) {
         console.error("FreeLLMAPI Router call failed:", err);
         isThinking = false;
-        const fallbackMsg = "I had trouble reaching my AI teachers right now. Please ask your teacher to check the API keys in the Admin panel, or try speaking again.";
+        const shortErr = (err && err.message ? err.message : 'Unknown error').slice(0, 140);
+        modelBadge.innerText = '❌ AI Router Error';
+        correctionText.innerText = `API Error: ${shortErr} — Open 🔒 Admin to test or add keys.`;
+        const fallbackMsg = "Sorry, my AI connection had an error. Please ask your teacher to check the Admin panel.";
         statueAnswerText.innerText = fallbackMsg;
         speak(fallbackMsg);
       }
     }
 
-    // --- Offline Simulation Mode (When API Key is not yet entered) ---
+    // --- Offline Demo Mode (Only when 0 API keys are saved in Admin) ---
     async function simulateOfflineCoach(studentText) {
-      await new Promise(r => setTimeout(r, 700));
+      await new Promise(r => setTimeout(r, 350));
       const lower = studentText.toLowerCase();
 
-      let spoken = "Hello! That was wonderful. Tell me more about what you like doing at school!";
-      let correction = "Great grammar! Your sentence was very clear.";
-      let tip = "Tip: When talking about hobbies, say 'I enjoy...' or 'I like...' followed by '-ing'.";
-      let rating = "Good";
+      let spoken = `I heard you say, "${studentText}". Please ask your teacher to add an API key in the Admin page so I can chat with full AI power!`;
+      let correction = "⚠️ Offline Demo Mode (0 active API keys). Open 🔒 Admin (passkey: 8590584541) to add NVIDIA, Groq, Gemini, or OpenRouter keys.";
+      let tip = "Once at least 1 API key is added in Admin, Coach Arya will answer any question with live AI coaching.";
+      let rating = "Demo Mode";
 
       if (lower.includes("yesterday") && (lower.includes("go") || lower.includes("eat") || lower.includes("play"))) {
-        spoken = "That sounds like fun! By the way, because it happened yesterday, we say 'went' instead of 'go'. What did you enjoy most about it?";
-        correction = "Instead of 'Yesterday I go', say 'Yesterday I went'.";
+        spoken = "That sounds like fun! By the way, for yesterday we say 'went' instead of 'go'. What did you enjoy most?";
+        correction = "Instead of 'Yesterday I go', say 'Yesterday I went'. (Demo Mode — add keys in Admin for full AI)";
         tip = "Past Tense Rule: The past tense of 'go' is 'went'.";
         rating = "Needs Practice";
       } else if (lower.includes("i has") || lower.includes("he have")) {
-        spoken = "I see! Notice that with 'I', we say 'I have'. Can you tell me what else you have?";
-        correction = "Instead of 'I has', say 'I have'.";
+        spoken = "Nice try! With 'I', we say 'I have' instead of 'I has'. Tell me more!";
+        correction = "Instead of 'I has', say 'I have'. (Demo Mode — add keys in Admin for full AI)";
         tip = "Subject-Verb Agreement: Use 'have' with I, you, we, they.";
         rating = "Needs Practice";
       } else if (lower.includes("which standard") || lower.includes("what standard")) {
-        spoken = "I am in standard five! In English, we also often ask, 'Which class are you studying in?' What is your favorite subject?";
-        correction = "You can say: 'Which class are you in?' or 'Which class are you studying in?'";
-        tip = "Phrasing: 'Class' and 'Grade' are globally used alongside 'Standard'.";
+        spoken = "In English, we also say 'Which class are you studying in?' Which subject do you enjoy most?";
+        correction = "Try saying: 'Which class are you studying in?' (Demo Mode — add keys in Admin for full AI)";
+        tip = "Phrasing: 'Class' and 'Grade' are widely used alongside 'Standard'.";
         rating = "Good";
       } else if (lower.includes("appam") || lower.includes("food") || lower.includes("puttu")) {
-        spoken = "Yum! Kerala food like appam and puttu is so delicious. What is your favorite curry to eat with it?";
-        correction = "Your sentence was very natural and expressive!";
-        tip = "Vocabulary: Use descriptive words like 'crisp', 'steamed', 'spicy', and 'tasty'!";
+        spoken = "Yum! Kerala food like appam and puttu is delicious. What curry do you like with it?";
+        correction = "Your sentence was clear and natural! (Demo Mode — add keys in Admin for full AI)";
+        tip = "Vocabulary: Try adjectives like 'crispy', 'steamed', and 'spicy'!";
         rating = "Excellent";
       }
 
