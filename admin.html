@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel - Kerala AI English Coach (FreeLLMAPI Router)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b132b;
+      --bg-card: #131d3a;
+      --bg-input: #0d152a;
+      --border: rgba(255, 255, 255, 0.12);
+      --nvidia: #76b900;
+      --groq: #f55036;
+      --google: #4285f4;
+      --openrouter: #8b5cf6;
+      --gold: #f4d06f;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --danger: #ef4444;
+      --success: #22c55e;
+      --warn: #f59e0b;
+      --font-display: 'Fredoka', sans-serif;
+      --font-body: 'Nunito', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: linear-gradient(135deg, #0b132b 0%, #162040 55%, #12333d 100%);
+      color: var(--text);
+      font-family: var(--font-body);
+      min-height: 100vh;
+    }
+
+    /* LOCK SCREEN */
+    #lockScreen {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .lock-card {
+      background: rgba(19, 29, 58, 0.92);
+      border: 1.5px solid rgba(118, 185, 0, 0.4);
+      border-radius: 24px;
+      padding: 36px 32px;
+      width: 100%;
+      max-width: 420px;
+      text-align: center;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(12px);
+    }
+
+    .lock-icon {
+      width: 68px;
+      height: 68px;
+      margin: 0 auto 16px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, #76b900, #3e6b00);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      box-shadow: 0 8px 24px rgba(118, 185, 0, 0.35);
+    }
+
+    .lock-card h1 {
+      font-family: var(--font-display);
+      font-size: 1.6rem;
+      margin-bottom: 6px;
+    }
+
+    .lock-card p {
+      color: var(--muted);
+      font-size: 0.92rem;
+      margin-bottom: 22px;
+    }
+
+    .passkey-input {
+      width: 100%;
+      padding: 14px 16px;
+      border-radius: 14px;
+      border: 2px solid var(--border);
+      background: var(--bg-input);
+      color: #fff;
+      font-size: 1.25rem;
+      font-family: monospace;
+      letter-spacing: 4px;
+      text-align: center;
+      outline: none;
+      margin-bottom: 14px;
+      transition: border-color 0.2s;
+    }
+
+    .passkey-input:focus { border-color: var(--nvidia); }
+
+    .lock-error {
+      color: #fca5a5;
+      font-size: 0.88rem;
+      font-weight: 700;
+      min-height: 22px;
+      margin-bottom: 10px;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-8px); }
+      75% { transform: translateX(8px); }
+    }
+    .shake { animation: shake 0.3s ease; }
+
+    /* ADMIN DASHBOARD */
+    #adminApp { display: none; }
+
+    header {
+      background: rgba(11, 19, 43, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1.5px solid rgba(118, 185, 0, 0.35);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header-left h1 {
+      font-family: var(--font-display);
+      font-size: 1.35rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge-freellm {
+      font-size: 0.72rem;
+      background: rgba(118, 185, 0, 0.2);
+      border: 1px solid var(--nvidia);
+      color: #bef264;
+      padding: 3px 9px;
+      border-radius: 8px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .container {
+      max-width: 1360px;
+      margin: 0 auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    /* Buttons */
+    .btn {
+      padding: 9px 16px;
+      border-radius: 10px;
+      border: none;
+      font-family: var(--font-body);
+      font-weight: 800;
+      font-size: 0.88rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s;
+      text-decoration: none;
+    }
+
+    .btn-primary { background: var(--nvidia); color: #0b132b; }
+    .btn-primary:hover { background: #8ed900; transform: translateY(-1px); }
+
+    .btn-secondary { background: rgba(255, 255, 255, 0.1); color: #fff; border: 1px solid var(--border); }
+    .btn-secondary:hover { background: rgba(255, 255, 255, 0.18); }
+
+    .btn-danger { background: rgba(239, 68, 68, 0.18); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.35); }
+    .btn-danger:hover { background: rgba(239, 68, 68, 0.32); }
+
+    .btn-sm { padding: 5px 10px; font-size: 0.78rem; border-radius: 8px; }
+    .btn-full { width: 100%; padding: 13px; font-size: 1rem; }
+
+    /* Stats Row */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 14px;
+    }
+
+    .stat-card {
+      background: rgba(19, 29, 58, 0.85);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px 18px;
+    }
+
+    .stat-label {
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      font-weight: 800;
+      letter-spacing: 0.6px;
+    }
+
+    .stat-value {
+      font-family: var(--font-display);
+      font-size: 1.9rem;
+      margin-top: 4px;
+      color: #fff;
+    }
+
+    /* Router Settings Panel */
+    .panel {
+      background: rgba(19, 29, 58, 0.88);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 20px 22px;
+    }
+
+    .panel-title {
+      font-family: var(--font-display);
+      font-size: 1.2rem;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .router-controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 14px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 800;
+      color: var(--muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .input, .select, .textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1.5px solid var(--border);
+      background: var(--bg-input);
+      color: #fff;
+      font-family: var(--font-body);
+      font-size: 0.9rem;
+      outline: none;
+    }
+
+    .input:focus, .select:focus, .textarea:focus { border-color: var(--nvidia); }
+    .textarea { font-family: monospace; resize: vertical; min-height: 70px; }
+
+    /* Provider Cards Grid */
+    .providers-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
+      gap: 18px;
+    }
+
+    @media (max-width: 560px) {
+      .providers-grid { grid-template-columns: 1fr; }
+    }
+
+    .provider-card {
+      background: rgba(19, 29, 58, 0.92);
+      border: 1.5px solid var(--border);
+      border-radius: 20px;
+      padding: 18px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .provider-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+    }
+
+    .provider-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .provider-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .provider-name {
+      font-family: var(--font-display);
+      font-size: 1.18rem;
+    }
+
+    .provider-badge {
+      font-size: 0.72rem;
+      padding: 2px 8px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #cbd5e1;
+      font-weight: 700;
+    }
+
+    .key-link {
+      font-size: 0.78rem;
+      color: #7dd3fc;
+      text-decoration: none;
+      font-weight: 700;
+    }
+    .key-link:hover { text-decoration: underline; }
+
+    /* Toggle Switch */
+    .switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .switch input { width: 18px; height: 18px; accent-color: var(--nvidia); cursor: pointer; }
+
+    /* Add Key Row */
+    .add-key-box {
+      background: rgba(11, 19, 43, 0.55);
+      border: 1px dashed rgba(255, 255, 255, 0.18);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .add-key-row {
+      display: grid;
+      grid-template-columns: 125px 1fr auto;
+      gap: 8px;
+    }
+
+    @media (max-width: 600px) {
+      .add-key-row { grid-template-columns: 1fr; }
+    }
+
+    /* Keys List */
+    .keys-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .key-item {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 12px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .key-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 180px;
+    }
+
+    .key-label-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 800;
+      font-size: 0.9rem;
+    }
+
+    .key-masked {
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .status-pill {
+      font-size: 0.7rem;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 12px;
+      text-transform: uppercase;
+    }
+    .st-ready { background: rgba(34, 197, 94, 0.2); color: #86efac; }
+    .st-cool { background: rgba(245, 158, 11, 0.22); color: #fcd34d; }
+    .st-off { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; }
+
+    .key-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .empty-keys {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+      padding: 12px;
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    /* Playground & Logs */
+    .playground-result {
+      margin-top: 12px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      font-family: monospace;
+      font-size: 0.85rem;
+      white-space: pre-wrap;
+      color: #e2e8f0;
+      max-height: 260px;
+      overflow-y: auto;
+    }
+
+    table.log-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.83rem;
+    }
+    table.log-table th, table.log-table td {
+      text-align: left;
+      padding: 9px 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    table.log-table th {
+      color: var(--muted);
+      text-transform: uppercase;
+      font-size: 0.73rem;
+      letter-spacing: 0.5px;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #1e293b;
+      border: 1.5px solid var(--nvidia);
+      color: #fff;
+      padding: 12px 18px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+      z-index: 100;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- PASSKEY LOCK SCREEN -->
+  <section id="lockScreen">
+    <div class="lock-card" id="lockCard">
+      <div class="lock-icon">🔐</div>
+      <h1>Coach Admin Panel</h1>
+      <p>Enter the administrator passkey to manage FreeLLMAPI providers, multi-key rotation, and routing settings.</p>
+      <form onsubmit="unlockAdmin(event)">
+        <input type="password" id="passkeyInput" class="passkey-input" placeholder="••••••••••" autocomplete="off" inputmode="numeric" autofocus />
+        <div class="lock-error" id="lockError"></div>
+        <button type="submit" class="btn btn-primary btn-full">🔓 Unlock Admin Dashboard</button>
+      </form>
+      <div style="margin-top: 16px;">
+        <a href="index.html" class="btn btn-secondary btn-full">← Back to Talking Statue</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ADMIN DASHBOARD -->
+  <div id="adminApp">
+    <header>
+      <div class="header-left">
+        <span style="font-size:1.6rem;">🗿</span>
+        <div>
+          <h1>
+            English Coach Admin
+            <span class="badge-freellm">FreeLLMAPI Router</span>
+          </h1>
+          <div style="font-size:0.78rem; color:var(--muted);">Multi-Provider &amp; Multi-Key Rotation with Automatic Rate-Limit Failover</div>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button class="btn btn-secondary" onclick="clearAllCooldowns()">♻️ Reset Cooldowns</button>
+        <button class="btn btn-secondary" onclick="exportConfig()">⬇️ Export JSON</button>
+        <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">⬆️ Import JSON</button>
+        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importConfig(event)" />
+        <a href="index.html" class="btn btn-primary">🗿 Open Statue Kiosk</a>
+        <button class="btn btn-danger" onclick="lockAdmin()">🔒 Lock</button>
+      </div>
+    </header>
+
+    <div class="container">
+      <!-- Live Telemetry Stats -->
+      <section class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Active API Keys</div>
+          <div class="stat-value" id="statActiveKeys" style="color:var(--nvidia);">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Requests</div>
+          <div class="stat-value" id="statTotalReq">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Success Rate</div>
+          <div class="stat-value" id="statSuccessRate" style="color:#4ade80;">100%</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Auto-Failovers Handled</div>
+          <div class="stat-value" id="statFailovers" style="color:var(--gold);">0</div>
+        </div>
+      </section>
+
+      <!-- Global Routing Strategy Panel -->
+      <section class="panel">
+        <div class="panel-title">
+          <span>🔀 FreeLLMAPI Routing Strategy &amp; Failover</span>
+          <span style="font-size:0.8rem; color:var(--muted); font-family:var(--font-body);">
+            Multiple keys inside the same provider rotate automatically (Round-Robin) &amp; fail over on 429/errors
+          </span>
+        </div>
+        <div class="router-controls">
+          <div class="field">
+            <label for="strategySelect">Routing Mode</label>
+            <select id="strategySelect" class="select" onchange="updateGlobalSettings()">
+              <option value="auto:balanced">Auto: Balanced (Groq → Google → NVIDIA → OpenRouter)</option>
+              <option value="auto:fast">Auto: Fastest Voice (Groq → Google Flash → NVIDIA → OpenRouter)</option>
+              <option value="auto:smart">Auto: Smartest Coach (NVIDIA 70B → Google → Groq → OpenRouter)</option>
+              <option value="round-robin">Global Round-Robin (Rotate Across All Providers Equally)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="pinnedSelect">Preferred Primary Provider</label>
+            <select id="pinnedSelect" class="select" onchange="updateGlobalSettings()">
+              <option value="auto">Automatic (Follow Routing Mode)</option>
+              <option value="nvidia">NVIDIA NIM First (Failover to others)</option>
+              <option value="groq">Groq Cloud First (Failover to others)</option>
+              <option value="google">Google AI Studio First (Failover to others)</option>
+              <option value="openrouter">OpenRouter First (Failover to others)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="cooldownInput">Rate-Limit Cooldown (Seconds)</label>
+            <input type="number" id="cooldownInput" class="input" min="10" max="600" value="60" onchange="updateGlobalSettings()" />
+          </div>
+        </div>
+      </section>
+
+      <!-- Provider Multi-Key Management Cards -->
+      <section class="providers-grid" id="providersGrid">
+        <!-- Rendered dynamically from FreeLLMRouter.PROVIDER_CATALOG -->
+      </section>
+
+      <!-- Built-in FreeLLMAPI Playground -->
+      <section class="panel">
+        <div class="panel-title">
+          <span>🧪 Live Router Playground (Test Rotation &amp; Failover)</span>
+          <button class="btn btn-primary btn-sm" onclick="runPlaygroundTest()">▶ Send Test Through Router</button>
+        </div>
+        <div class="field">
+          <label for="playgroundPrompt">Simulated Student Sentence</label>
+          <input type="text" id="playgroundPrompt" class="input" value="Yesterday I go to Kozhikode beach with my father and eat banana chips." />
+        </div>
+        <div class="playground-result" id="playgroundOutput">Click "Send Test Through Router" to test your multi-provider / multi-key rotation live.</div>
+      </section>
+
+      <!-- Live Routing Log -->
+      <section class="panel">
+        <div class="panel-title">
+          <span>📜 Recent Routing &amp; Failover Telemetry</span>
+          <button class="btn btn-secondary btn-sm" onclick="clearRouterLogs()">🗑️ Clear Logs</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="log-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Status</th>
+                <th>Provider</th>
+                <th>Model</th>
+                <th>Key Used</th>
+                <th>Latency</th>
+                <th>Route Note</th>
+              </tr>
+            </thead>
+            <tbody id="logsTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="llm-router.js"></script>
+  <script>
+    const SESSION_UNLOCK_KEY = 'COACH_ADMIN_UNLOCKED_V1';
+    let config = null;
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.innerText = msg;
+      t.style.display = 'block';
+      clearTimeout(t._timer);
+      t._timer = setTimeout(() => { t.style.display = 'none'; }, 2800);
+    }
+
+    // --- Passkey Gate ---
+    function unlockAdmin(event) {
+      event.preventDefault();
+      const input = document.getElementById('passkeyInput');
+      const err = document.getElementById('lockError');
+      const card = document.getElementById('lockCard');
+
+      if (input.value.trim() === FreeLLMRouter.ADMIN_PASSKEY) {
+        sessionStorage.setItem(SESSION_UNLOCK_KEY, '1');
+        err.innerText = '';
+        enterDashboard();
+      } else {
+        err.innerText = '❌ Incorrect passkey. Access denied.';
+        card.classList.remove('shake');
+        void card.offsetWidth;
+        card.classList.add('shake');
+        input.value = '';
+        input.focus();
+      }
+    }
+
+    function lockAdmin() {
+      sessionStorage.removeItem(SESSION_UNLOCK_KEY);
+      document.getElementById('adminApp').style.display = 'none';
+      document.getElementById('lockScreen').style.display = 'flex';
+      document.getElementById('passkeyInput').value = '';
+      document.getElementById('passkeyInput').focus();
+    }
+
+    async function enterDashboard() {
+      document.getElementById('lockScreen').style.display = 'none';
+      document.getElementById('adminApp').style.display = 'block';
+      config = await FreeLLMRouter.hydrateFromServerIfAvailable();
+      renderAll();
+    }
+
+    // --- Render Dashboard ---
+    function renderAll() {
+      config = FreeLLMRouter.loadConfig();
+      renderStats();
+      renderGlobalControls();
+      renderProviders();
+      renderLogs();
+    }
+
+    function renderStats() {
+      document.getElementById('statActiveKeys').innerText = FreeLLMRouter.countActiveKeys(config);
+      const total = config.stats.totalRequests || 0;
+      const ok = config.stats.totalSuccess || 0;
+      const rate = total > 0 ? Math.round((ok / total) * 100) : 100;
+      document.getElementById('statTotalReq').innerText = total;
+      document.getElementById('statSuccessRate').innerText = `${rate}%`;
+      document.getElementById('statFailovers').innerText = config.stats.totalFailovers || 0;
+    }
+
+    function renderGlobalControls() {
+      document.getElementById('strategySelect').value = config.strategy || 'auto:balanced';
+      document.getElementById('pinnedSelect').value = config.pinnedProvider || 'auto';
+      document.getElementById('cooldownInput').value = config.cooldownSeconds || 60;
+    }
+
+    function updateGlobalSettings() {
+      config.strategy = document.getElementById('strategySelect').value;
+      config.pinnedProvider = document.getElementById('pinnedSelect').value;
+      config.cooldownSeconds = Math.max(10, parseInt(document.getElementById('cooldownInput').value, 10) || 60);
+      FreeLLMRouter.saveConfig(config);
+      showToast('✅ Routing strategy saved!');
+    }
+
+    function renderProviders() {
+      const grid = document.getElementById('providersGrid');
+      grid.innerHTML = '';
+
+      const order = ['nvidia', 'groq', 'google', 'openrouter'];
+      for (const pid of order) {
+        const meta = FreeLLMRouter.PROVIDER_CATALOG[pid];
+        const pCfg = config.providers[pid];
+
+        const modelOptions = meta.models.map(m =>
+          `<option value="${m.id}" ${pCfg.model === m.id ? 'selected' : ''}>${m.label}</option>`
+        ).join('');
+
+        let keysHtml = '';
+        if (!pCfg.keys.length) {
+          keysHtml = `<div class="empty-keys">No keys added for ${meta.name} yet. Add one or paste multiple keys below.</div>`;
+        } else {
+          keysHtml = pCfg.keys.map((kObj, idx) => {
+            const cool = FreeLLMRouter.getKeyCooldownRemaining(kObj);
+            let pillClass = 'st-ready';
+            let pillText = 'Ready';
+            if (!kObj.enabled) {
+              pillClass = 'st-off';
+              pillText = 'Disabled';
+            } else if (cool > 0) {
+              pillClass = 'st-cool';
+              pillText = `Cooldown ${cool}s`;
+            }
+
+            return `
+              <div class="key-item">
+                <div class="key-meta">
+                  <div class="key-label-line">
+                    <span>#${idx + 1} ${escapeHtml(kObj.label)}</span>
+                    <span class="status-pill ${pillClass}">${pillText}</span>
+                  </div>
+                  <div class="key-masked">
+                    ${FreeLLMRouter.maskKey(kObj.key)} • Calls: ${kObj.requests || 0} • Err: ${kObj.errors || 0}
+                  </div>
+                  ${kObj.lastError ? `<div style="font-size:0.74rem; color:#fca5a5;">Last err: ${escapeHtml(kObj.lastError.slice(0, 75))}</div>` : ''}
+                </div>
+                <div class="key-actions">
+                  <button class="btn btn-secondary btn-sm" onclick="testSingleKey('${pid}', '${kObj.id}')">⚡ Test</button>
+                  <button class="btn btn-secondary btn-sm" onclick="toggleKeyEnabled('${pid}', '${kObj.id}')">${kObj.enabled ? 'Pause' : 'Enable'}</button>
+                  <button class="btn btn-danger btn-sm" onclick="deleteKey('${pid}', '${kObj.id}')">✕</button>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+
+        const card = document.createElement('div');
+        card.className = 'provider-card';
+        card.style.borderTop = `4px solid ${meta.color}`;
+        card.innerHTML = `
+          <div class="provider-head">
+            <div class="provider-title">
+              <span class="provider-dot" style="background:${meta.color};"></span>
+              <div>
+                <div class="provider-name">${meta.name} <span class="provider-badge">${meta.badge}</span></div>
+                <a class="key-link" href="${meta.getKeyUrl}" target="_blank">Get Free API Key ↗</a>
+              </div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" ${pCfg.enabled ? 'checked' : ''} onchange="toggleProvider('${pid}', this.checked)" />
+              <span>${pCfg.enabled ? 'Enabled' : 'Disabled'}</span>
+            </label>
+          </div>
+
+          <div class="field">
+            <label>Active Model for ${meta.name}</label>
+            <select class="select" onchange="changeProviderModel('${pid}', this.value)">
+              ${modelOptions}
+            </select>
+          </div>
+
+          <div class="add-key-box">
+            <div style="font-size:0.78rem; font-weight:800; color:var(--muted); display:flex; justify-content:space-between;">
+              <span>ADD API KEY (${pCfg.keys.length} saved — rotates automatically)</span>
+              <a href="#" onclick="event.preventDefault(); toggleBulkBox('${pid}')" style="color:#7dd3fc; text-decoration:none;">+ Bulk Paste Multiple</a>
+            </div>
+            <div class="add-key-row">
+              <input type="text" id="label-${pid}" class="input" placeholder="Label (e.g. Key 1)" />
+              <input type="password" id="key-${pid}" class="input" placeholder="${meta.keyPlaceholder}" />
+              <button class="btn btn-primary" onclick="addSingleKey('${pid}')">+ Add</button>
+            </div>
+            <div id="bulk-${pid}" style="display:none; margin-top:6px;">
+              <textarea id="bulkText-${pid}" class="textarea" placeholder="Paste multiple ${meta.name} keys here (one key per line)..."></textarea>
+              <button class="btn btn-secondary btn-sm" style="margin-top:6px;" onclick="addBulkKeys('${pid}')">📥 Add All Keys</button>
+            </div>
+          </div>
+
+          <div class="keys-list">${keysHtml}</div>
+        `;
+        grid.appendChild(card);
+      }
+    }
+
+    function escapeHtml(str) {
+      return String(str || '').replace(/[&<>"']/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[m]));
+    }
+
+    function toggleBulkBox(pid) {
+      const box = document.getElementById(`bulk-${pid}`);
+      box.style.display = box.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function toggleProvider(pid, enabled) {
+      config.providers[pid].enabled = enabled;
+      FreeLLMRouter.saveConfig(config);
+      renderAll();
+      showToast(`${FreeLLMRouter.PROVIDER_CATALOG[pid].name} ${enabled ? 'enabled' : 'disabled'}`);
+    }
+
+    function changeProviderModel(pid, model) {
+      config.providers[pid].model = model;
+      FreeLLMRouter.saveConfig(config);
+      showToast(`Model updated to ${model}`);
+    }
+
+    function addSingleKey(pid) {
+      const keyInput = document.getElementById(`key-${pid}`);
+      const labelInput = document.getElementById(`label-${pid}`);
+      const rawKey = keyInput.value.trim();
+      if (!rawKey) {
+        showToast('⚠️ Please paste an API key first.');
+        return;
+      }
+      const nextNum = config.providers[pid].keys.length + 1;
+      const label = labelInput.value.trim() || `${FreeLLMRouter.PROVIDER_CATALOG[pid].name} #${nextNum}`;
+      config.providers[pid].keys.push(FreeLLMRouter.createKeyEntry(rawKey, label));
+      FreeLLMRouter.saveConfig(config);
+      renderAll();
+      showToast(`✅ Added key "${label}" to ${FreeLLMRouter.PROVIDER_CATALOG[pid].name}!`);
+    }
+
+    function addBulkKeys(pid) {
+      const ta = document.getElementById(`bulkText-${pid}`);
+      const lines = ta.value.split(/\r?\n/).map(s => s.trim()).filter(s => s.length > 5);
+      if (!lines.length) {
+        showToast('⚠️ Paste one or more API keys (one per line).');
+        return;
+      }
+      lines.forEach(k => {
+        const nextNum = config.providers[pid].keys.length + 1;
+        config.providers[pid].keys.push(FreeLLMRouter.createKeyEntry(k, `${FreeLLMRouter.PROVIDER_CATALOG[pid].name} #${nextNum}`));
+      });
+      FreeLLMRouter.saveConfig(config);
+      renderAll();
+      showToast(`✅ Added ${lines.length} keys to ${FreeLLMRouter.PROVIDER_CATALOG[pid].name}!`);
+    }
+
+    function toggleKeyEnabled(pid, keyId) {
+      const kObj = config.providers[pid].keys.find(k => k.id === keyId);
+      if (!kObj) return;
+      kObj.enabled = !kObj.enabled;
+      FreeLLMRouter.saveConfig(config);
+      renderAll();
+    }
+
+    function deleteKey(pid, keyId) {
+      config.providers[pid].keys = config.providers[pid].keys.filter(k => k.id !== keyId);
+      FreeLLMRouter.saveConfig(config);
+      renderAll();
+      showToast('🗑️ API key removed.');
+    }
+
+    function clearAllCooldowns() {
+      Object.keys(config.providers).forEach(pid => {
+        config.providers[pid].keys.forEach(k => {
+          k.cooldownUntil = 0;
+          k.lastError = '';
+        });
+      });
+      FreeLLMRouter.saveConfig(config);
+      renderAll();
+      showToast('♻️ All key cooldowns cleared!');
+    }
+
+    async function testSingleKey(pid, keyId) {
+      showToast(`⚡ Testing ${FreeLLMRouter.PROVIDER_CATALOG[pid].name} key...`);
+      try {
+        const res = await FreeLLMRouter.chat({
+          overrideProviderId: pid,
+          overrideKeyId: keyId,
+          jsonMode: false,
+          maxTokens: 40,
+          messages: [
+            { role: 'system', content: 'Reply in 5 words max.' },
+            { role: 'user', content: 'Say hello to Kerala students!' }
+          ]
+        });
+        renderAll();
+        showToast(`✅ Key OK! (${res.latencyMs}ms): "${res.content.slice(0, 45)}"`);
+      } catch (err) {
+        renderAll();
+        showToast(`❌ Key Failed: ${err.message.slice(0, 70)}`);
+      }
+    }
+
+    async function runPlaygroundTest() {
+      const out = document.getElementById('playgroundOutput');
+      const prompt = document.getElementById('playgroundPrompt').value.trim();
+      out.innerText = '⏳ Routing through FreeLLMAPI engine (rotating keys & checking failover)...';
+
+      try {
+        const res = await FreeLLMRouter.chat({
+          jsonMode: true,
+          maxTokens: 300,
+          messages: [
+            {
+              role: 'system',
+              content: 'You are Coach Arya, an AI English Coach for Kerala school students. Respond in JSON: {"spoken":"short 2 sentence reply with gentle correction","correction":"explanation","tip":"grammar tip","student_input_rating":"Good"}'
+            },
+            { role: 'user', content: prompt }
+          ]
+        });
+        renderAll();
+        out.innerText =
+          `✅ Routed Successfully!\n` +
+          `Provider : ${res.providerName}\n` +
+          `Model    : ${res.model}\n` +
+          `Key Used : ${res.keyLabel}\n` +
+          `Latency  : ${res.latencyMs} ms\n\n` +
+          `Response:\n${res.content}`;
+      } catch (err) {
+        renderAll();
+        out.innerText = `❌ Router Error:\n${err.message}`;
+      }
+    }
+
+    function renderLogs() {
+      const logs = FreeLLMRouter.loadLogs();
+      const tbody = document.getElementById('logsTableBody');
+      if (!logs.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--muted); padding:16px;">No requests logged yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = logs.map(l => `
+        <tr>
+          <td>${escapeHtml(l.time)}</td>
+          <td><span class="status-pill ${l.status === 'ok' ? 'st-ready' : 'st-cool'}">${l.status === 'ok' ? 'OK' : 'FAIL'}</span></td>
+          <td><strong>${escapeHtml(l.provider)}</strong></td>
+          <td style="font-family:monospace; font-size:0.78rem;">${escapeHtml(l.model)}</td>
+          <td>${escapeHtml(l.keyLabel)}</td>
+          <td>${l.latencyMs ? l.latencyMs + 'ms' : '-'}</td>
+          <td style="color:${l.status === 'ok' ? '#86efac' : '#fca5a5'};">${escapeHtml(l.failover)}</td>
+        </tr>
+      `).join('');
+    }
+
+    function clearRouterLogs() {
+      FreeLLMRouter.clearLogs();
+      renderLogs();
+      showToast('🗑️ Logs cleared.');
+    }
+
+    function exportConfig() {
+      const blob = new Blob([JSON.stringify(FreeLLMRouter.loadConfig(), null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'kerala-coach-freellmapi-keys.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('⬇️ Config exported!');
+    }
+
+    function importConfig(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          if (!parsed.providers) throw new Error('Invalid config file');
+          FreeLLMRouter.saveConfig(parsed);
+          renderAll();
+          showToast('⬆️ Keys & router config imported!');
+        } catch (err) {
+          showToast('❌ Invalid JSON file.');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // Refresh cooldown counters every 5 seconds while dashboard is open
+    setInterval(() => {
+      if (document.getElementById('adminApp').style.display === 'block') {
+        renderProviders();
+      }
+    }, 5000);
+
+    // Auto-unlock if already unlocked in current browser session
+    if (sessionStorage.getItem(SESSION_UNLOCK_KEY) === '1') {
+      enterDashboard();
+    }
+  </script>
+</body>
+</html>

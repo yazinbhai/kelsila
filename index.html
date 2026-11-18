@@ -1,0 +1,1444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kerala AI English Coach Statue (NVIDIA NIM)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-gradient: linear-gradient(135deg, #0b132b 0%, #1c2541 50%, #1f4e5b 100%);
+      --nvidia-green: #76b900;
+      --nvidia-green-light: #9aff02;
+      --gold: #f4d06f;
+      --gold-dark: #d4a327;
+      --kerala-green: #2d6a4f;
+      --accent-coral: #ee6c4d;
+      --accent-cyan: #48cae4;
+      --text-dark: #0f172a;
+      --text-muted: #64748b;
+      --font-display: 'Fredoka', cursive, sans-serif;
+      --font-body: 'Nunito', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background: var(--bg-gradient);
+      font-family: var(--font-body);
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Top Kiosk Header */
+    header {
+      background: rgba(11, 19, 43, 0.7);
+      backdrop-filter: blur(12px);
+      border-bottom: 2px solid rgba(118, 185, 0, 0.35);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-icon {
+      font-size: 1.8rem;
+      background: linear-gradient(135deg, var(--nvidia-green) 0%, #4c7c00 100%);
+      color: #fff;
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 14px;
+      box-shadow: 0 4px 16px rgba(118, 185, 0, 0.4);
+    }
+
+    .brand-title h1 {
+      font-family: var(--font-display);
+      font-size: 1.4rem;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-title h1 .badge-nvidia {
+      font-size: 0.75rem;
+      background: rgba(118, 185, 0, 0.2);
+      border: 1px solid var(--nvidia-green);
+      color: var(--nvidia-green-light);
+      padding: 2px 8px;
+      border-radius: 6px;
+      letter-spacing: 0.5px;
+      font-weight: 800;
+    }
+
+    .brand-title p {
+      font-size: 0.82rem;
+      color: #94a3b8;
+    }
+
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 30px;
+      font-size: 0.85rem;
+      font-weight: 700;
+    }
+
+    .pill-awake {
+      background: rgba(45, 106, 79, 0.6);
+      border: 1px solid #52b788;
+      color: #b7e4c7;
+    }
+
+    .pill-awake .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #52b788;
+      animation: pulseGreen 1.5s infinite;
+    }
+
+    .pill-mic {
+      background: rgba(238, 108, 77, 0.2);
+      border: 1px solid var(--accent-coral);
+      color: #ffa69e;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .pill-mic.active {
+      background: rgba(118, 185, 0, 0.25);
+      border-color: var(--nvidia-green);
+      color: #d4ff7d;
+    }
+
+    .btn-key {
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: #fff;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-key:hover {
+      background: rgba(255, 255, 255, 0.2);
+      border-color: var(--nvidia-green);
+    }
+
+    /* Main Grid */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 420px;
+      gap: 24px;
+      padding: 24px;
+      max-width: 1440px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    @media (max-width: 1024px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Left Side: Talking Statue Mascot & Live Speech */
+    .statue-stage {
+      background: rgba(255, 255, 255, 0.05);
+      border: 2px solid rgba(255, 255, 255, 0.1);
+      border-radius: 28px;
+      backdrop-filter: blur(14px);
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.4);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .statue-stage::before {
+      content: '';
+      position: absolute;
+      width: 360px;
+      height: 360px;
+      background: radial-gradient(circle, rgba(118, 185, 0, 0.18) 0%, transparent 70%);
+      top: 15%;
+      left: 50%;
+      transform: translateX(-50%);
+      pointer-events: none;
+    }
+
+    /* Mascot Avatar */
+    .mascot-container {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 8px 0;
+    }
+
+    .statue-svg {
+      width: 250px;
+      height: 250px;
+      filter: drop-shadow(0 15px 25px rgba(0, 0, 0, 0.5));
+      transition: transform 0.3s ease;
+    }
+
+    .speaking .statue-svg {
+      animation: headBob 0.6s infinite ease-in-out;
+    }
+
+    @keyframes headBob {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      50% { transform: translateY(-3px) rotate(0.5deg); }
+    }
+
+    /* Blinking eyes */
+    .blinking .eye-open { display: none; }
+    .blinking .eye-closed { display: block; }
+    .eye-closed { display: none; }
+
+    /* Listening Aura Wave */
+    .sound-waves {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      height: 32px;
+      margin-top: 12px;
+    }
+
+    .wave-bar {
+      width: 5px;
+      height: 8px;
+      background: var(--gold);
+      border-radius: 4px;
+      transition: height 0.15s ease;
+    }
+
+    .listening .wave-bar {
+      background: var(--nvidia-green-light);
+      animation: waveDance 0.8s infinite ease-in-out;
+    }
+    .listening .wave-bar:nth-child(2) { animation-delay: 0.1s; }
+    .listening .wave-bar:nth-child(3) { animation-delay: 0.2s; }
+    .listening .wave-bar:nth-child(4) { animation-delay: 0.3s; }
+    .listening .wave-bar:nth-child(5) { animation-delay: 0.4s; }
+    .listening .wave-bar:nth-child(6) { animation-delay: 0.2s; }
+    .listening .wave-bar:nth-child(7) { animation-delay: 0.1s; }
+
+    @keyframes waveDance {
+      0%, 100% { height: 8px; }
+      50% { height: 32px; }
+    }
+
+    .statue-state-badge {
+      margin-top: 10px;
+      padding: 6px 20px;
+      border-radius: 20px;
+      font-size: 0.95rem;
+      font-family: var(--font-display);
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .state-listening {
+      background: rgba(118, 185, 0, 0.25);
+      border-color: var(--nvidia-green);
+      color: #d4ff7d;
+    }
+
+    .state-thinking {
+      background: rgba(72, 202, 228, 0.25);
+      border-color: var(--accent-cyan);
+      color: #caf0f8;
+    }
+
+    .state-speaking {
+      background: rgba(244, 208, 111, 0.25);
+      border-color: var(--gold);
+      color: var(--gold);
+    }
+
+    /* Dialogue Bubbles */
+    .conversation-display {
+      width: 100%;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-top: 16px;
+    }
+
+    .speech-box {
+      border-radius: 18px;
+      padding: 16px 20px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    }
+
+    .student-box {
+      background: rgba(255, 255, 255, 0.12);
+      border-left: 6px solid var(--accent-cyan);
+    }
+
+    .student-box .box-label {
+      font-size: 0.8rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--accent-cyan);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .student-box .box-text {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #ffffff;
+      min-height: 32px;
+    }
+
+    .statue-box {
+      background: #ffffff;
+      color: var(--text-dark);
+      border-left: 6px solid var(--nvidia-green);
+    }
+
+    .statue-box .box-label {
+      font-size: 0.8rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #4c7c00;
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .statue-box .box-text {
+      font-size: 1.35rem;
+      font-weight: 800;
+      font-family: var(--font-display);
+      color: #0f172a;
+      line-height: 1.4;
+    }
+
+    /* Right Side: English Coach's Learning Board */
+    .sidebar-panel {
+      background: rgba(255, 255, 255, 0.96);
+      color: var(--text-dark);
+      border-radius: 28px;
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.4);
+      max-height: 84vh;
+      overflow-y: auto;
+    }
+
+    .coach-header {
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .coach-header h2 {
+      font-family: var(--font-display);
+      font-size: 1.3rem;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .coach-card {
+      background: #f8fafc;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .coach-card-title {
+      font-size: 0.78rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .card-correction {
+      border-left: 5px solid #f59e0b;
+      background: #fffbeb;
+    }
+    .card-correction .coach-card-title { color: #b45309; }
+
+    .card-tip {
+      border-left: 5px solid #3b82f6;
+      background: #eff6ff;
+    }
+    .card-tip .coach-card-title { color: #1d4ed8; }
+
+    .card-praise {
+      border-left: 5px solid var(--nvidia-green);
+      background: #f0fdf4;
+    }
+    .card-praise .coach-card-title { color: #15803d; }
+
+    .coach-card-body {
+      font-size: 0.95rem;
+      color: #1e293b;
+      line-height: 1.45;
+      font-weight: 600;
+    }
+
+    /* Practice Topics & Starters */
+    .starters-section {
+      margin-top: 6px;
+    }
+
+    .starters-section h3 {
+      font-size: 0.85rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+
+    .starter-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip-btn {
+      background: #e2e8f0;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-family: var(--font-body);
+      font-weight: 700;
+      color: #334155;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: left;
+    }
+
+    .chip-btn:hover {
+      background: var(--nvidia-green);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+
+    /* Modal for API Key Settings */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(6px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+
+    .modal-card {
+      background: #ffffff;
+      color: var(--text-dark);
+      border-radius: 24px;
+      width: 90%;
+      max-width: 520px;
+      padding: 28px;
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .modal-header h2 {
+      font-family: var(--font-display);
+      font-size: 1.35rem;
+      color: #0f172a;
+    }
+
+    .modal-body {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .modal-body label {
+      font-size: 0.85rem;
+      font-weight: 800;
+      color: #475569;
+    }
+
+    .modal-input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1.5px solid #cbd5e1;
+      font-family: monospace;
+      font-size: 0.95rem;
+      outline: none;
+    }
+
+    .modal-input:focus {
+      border-color: var(--nvidia-green);
+    }
+
+    .modal-select {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 12px;
+      border: 1.5px solid #cbd5e1;
+      font-family: var(--font-body);
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    /* Kiosk Footer */
+    footer {
+      background: rgba(11, 19, 43, 0.7);
+      backdrop-filter: blur(8px);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .footer-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      color: #94a3b8;
+    }
+
+    .btn {
+      padding: 8px 18px;
+      border-radius: 10px;
+      font-family: var(--font-body);
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-primary {
+      background: var(--nvidia-green);
+      color: #0f172a;
+    }
+    .btn-primary:hover {
+      background: var(--nvidia-green-light);
+      box-shadow: 0 4px 14px rgba(118, 185, 0, 0.4);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    @keyframes pulseGreen {
+      0% { box-shadow: 0 0 0 0 rgba(82, 183, 136, 0.7); }
+      70% { box-shadow: 0 0 0 8px rgba(82, 183, 136, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(82, 183, 136, 0); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Kiosk Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">🗿</div>
+      <div class="brand-title">
+        <h1>
+          Kerala English Coach Statue
+          <span class="badge-nvidia">FreeLLMAPI Multi-AI</span>
+        </h1>
+        <p>Conversational Spoken English & Live Micro-Corrections for Kerala Students</p>
+      </div>
+    </div>
+
+    <div class="header-controls">
+      <div class="pill pill-awake" title="Screen Wake Lock is active. The PC will not sleep.">
+        <span class="dot"></span>
+        <span id="wakeLockStatus">Always Awake: ON</span>
+      </div>
+      <div class="pill pill-mic active" id="micPill" onclick="toggleListening()">
+        <span id="micIcon">🎙️</span>
+        <span id="micStatusText">Statue Mic: ACTIVE</span>
+      </div>
+      <a href="admin.html" class="btn-key" style="text-decoration:none;" title="Passkey-protected Admin Panel">
+        <span>🔒 Admin</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Kiosk Body -->
+  <main>
+    <!-- Left Stage: Talking Statue Mascot & Live Speech -->
+    <section class="statue-stage" id="stageContainer">
+
+      <!-- High-Quality Anatomical Talking Mascot SVG -->
+      <div class="mascot-container" id="mascotWrapper">
+        <svg class="statue-svg" id="statueSvg" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
+          <!-- Glow Circle -->
+          <circle cx="120" cy="120" r="110" fill="#76b900" opacity="0.12" />
+
+          <!-- Kerala Traditional Kasavu Shoulders -->
+          <path d="M38 180 Q120 210 202 180 L220 240 L20 240 Z" fill="#f8fafc" stroke="#d4a327" stroke-width="2"/>
+          <path d="M38 180 Q120 210 202 180" fill="none" stroke="#76b900" stroke-width="7"/>
+
+          <!-- Traditional Kerala Golden Crown / Kireedam -->
+          <g id="crown">
+            <path d="M78 68 Q120 58 162 68 L158 80 Q120 70 82 80 Z" fill="#d4a327" stroke="#b48215" stroke-width="2"/>
+            <path d="M86 64 L120 18 L154 64 Z" fill="#f4d06f" stroke="#d4a327" stroke-width="2"/>
+            <circle cx="120" cy="38" r="7" fill="#76b900" stroke="#4c7c00" stroke-width="1.5"/>
+            <polygon points="120,24 123,30 120,36 117,30" fill="#ffffff"/>
+            <circle cx="102" cy="54" r="4" fill="#ee6c4d"/>
+            <circle cx="138" cy="54" r="4" fill="#ee6c4d"/>
+          </g>
+
+          <!-- Head & Ears Group -->
+          <g id="headGroup">
+            <!-- Ears with Ornaments -->
+            <circle cx="56" cy="122" r="14" fill="#f6c445" stroke="#d4a327" stroke-width="2.5"/>
+            <circle cx="53" cy="138" r="7" fill="#76b900"/>
+            <circle cx="184" cy="122" r="14" fill="#f6c445" stroke="#d4a327" stroke-width="2.5"/>
+            <circle cx="187" cy="138" r="7" fill="#76b900"/>
+
+            <!-- Main Head Face -->
+            <ellipse cx="120" cy="122" rx="64" ry="58" fill="#f6c445" stroke="#d4a327" stroke-width="3.5" />
+
+            <!-- Forehead Sandalwood (Chandanam) & Tilak -->
+            <path d="M104 88 Q120 91 136 88" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
+            <circle cx="120" cy="84" r="3.5" fill="#ee6c4d"/>
+
+            <!-- Eyebrows -->
+            <path d="M84 98 Q98 90 108 97" fill="none" stroke="#5a3d28" stroke-width="3" stroke-linecap="round"/>
+            <path d="M132 97 Q142 90 156 98" fill="none" stroke="#5a3d28" stroke-width="3" stroke-linecap="round"/>
+
+            <!-- Eyes (Open) -->
+            <g class="eye-open" id="eyesOpen">
+              <ellipse cx="96" cy="108" rx="10.5" ry="7.5" fill="#ffffff" stroke="#5a3d28" stroke-width="1.5"/>
+              <circle cx="96" cy="108" r="4.8" fill="#1e293b"/>
+              <circle cx="98" cy="106" r="1.6" fill="#ffffff"/>
+
+              <ellipse cx="144" cy="108" rx="10.5" ry="7.5" fill="#ffffff" stroke="#5a3d28" stroke-width="1.5"/>
+              <circle cx="144" cy="108" r="4.8" fill="#1e293b"/>
+              <circle cx="146" cy="106" r="1.6" fill="#ffffff"/>
+            </g>
+
+            <!-- Eyes (Blinking/Closed) -->
+            <g class="eye-closed" id="eyesClosed">
+              <path d="M86 109 Q96 116 106 109" fill="none" stroke="#5a3d28" stroke-width="3" stroke-linecap="round"/>
+              <path d="M134 109 Q144 116 154 109" fill="none" stroke="#5a3d28" stroke-width="3" stroke-linecap="round"/>
+            </g>
+
+            <!-- Soft Blush Cheeks -->
+            <ellipse cx="78" cy="126" rx="9" ry="5" fill="#ee6c4d" opacity="0.32"/>
+            <ellipse cx="162" cy="126" rx="9" ry="5" fill="#ee6c4d" opacity="0.32"/>
+
+            <!-- Cute Subtle Nose (Cleanly Separated) -->
+            <path d="M120 114 Q117 124 122 125" fill="none" stroke="#b48215" stroke-width="2.2" stroke-linecap="round"/>
+          </g>
+
+          <!-- Dynamic Jaw & 7-Viseme LipSync Group -->
+          <g id="jawGroup" style="transition: transform 0.06s ease-out; transform-box: fill-box; transform-origin: center;">
+            <!-- VISEME 1: CLOSED SMILE -->
+            <path id="viseme-closed" d="M106 147 Q120 156 134 147" fill="none" stroke="#99281e" stroke-width="3.5" stroke-linecap="round"/>
+
+            <!-- VISEME 2: "MM" / B / P -->
+            <g id="viseme-mm" style="display:none;">
+              <path d="M107 148 Q120 150 133 148" fill="none" stroke="#8a2016" stroke-width="4.2" stroke-linecap="round"/>
+            </g>
+
+            <!-- VISEME 3: "FV" / F / V -->
+            <g id="viseme-fv" style="display:none;">
+              <path d="M106 146 Q120 144 134 146 Q132 152 120 152 Q108 152 106 146 Z" fill="#6d1a12" stroke="#4a100b" stroke-width="1.5"/>
+              <path d="M109 146 Q120 148 131 146 L130 149.5 Q120 151 110 149.5 Z" fill="#ffffff"/>
+              <path d="M107 151 Q120 154 133 151" fill="none" stroke="#99281e" stroke-width="2.5" stroke-linecap="round"/>
+            </g>
+
+            <!-- VISEME 4: "MID" / Consonants -->
+            <g id="viseme-mid" style="display:none;">
+              <path d="M107 145 Q120 142 133 145 Q132 155 120 155 Q108 155 107 145 Z" fill="#6d1a12" stroke="#4a100b" stroke-width="1.8"/>
+              <path d="M111 145 Q120 146.5 129 145 L129 148 Q120 149.5 111 148 Z" fill="#ffffff"/>
+            </g>
+
+            <!-- VISEME 5: OPEN "EE" -->
+            <g id="viseme-ee" style="display:none;">
+              <path d="M102 145 Q120 141 138 145 Q136 156 120 156 Q104 156 102 145 Z" fill="#6d1a12" stroke="#4a100b" stroke-width="1.8"/>
+              <path d="M107 145 Q120 146.5 133 145 L133 149 Q120 150.5 107 149 Z" fill="#ffffff"/>
+              <path d="M112 153 Q120 151 128 153 Q120 156 112 153 Z" fill="#ee6c4d"/>
+            </g>
+
+            <!-- VISEME 6: OPEN "OH" -->
+            <g id="viseme-oh" style="display:none;">
+              <ellipse cx="120" cy="150" rx="9" ry="11.5" fill="#6d1a12" stroke="#4a100b" stroke-width="2"/>
+              <ellipse cx="120" cy="156" rx="5.5" ry="3.8" fill="#ee6c4d"/>
+            </g>
+
+            <!-- VISEME 7: OPEN "AH" -->
+            <g id="viseme-ah" style="display:none;">
+              <path d="M105 143 Q120 138 135 143 Q136 163 120 163 Q104 163 105 143 Z" fill="#6d1a12" stroke="#4a100b" stroke-width="2"/>
+              <path d="M109 143 Q120 145 131 143 L131 147 Q120 149 109 147 Z" fill="#ffffff"/>
+              <path d="M111 156 Q120 152 129 156 Q120 163 111 156 Z" fill="#ee6c4d"/>
+            </g>
+          </g>
+        </svg>
+
+        <!-- Sound Waves -->
+        <div class="sound-waves" id="soundWaves">
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+        </div>
+
+        <div class="statue-state-badge state-listening" id="stateBadge">
+          👂 I am listening... Say something in English!
+        </div>
+      </div>
+
+      <!-- Live Speech Boxes -->
+      <div class="conversation-display">
+        <!-- Student's Voice -->
+        <div class="speech-box student-box">
+          <div class="box-label">
+            <span>🧒 Student's Voice (Through Mic)</span>
+            <span id="interimIndicator" style="display:none; color: var(--accent-cyan); font-size: 0.7rem;">[Listening...]</span>
+          </div>
+          <div class="box-text" id="studentSpeechText">
+            "Talk to me about school, food, football, or your day!"
+          </div>
+        </div>
+
+        <!-- Coach Statue's Voice -->
+        <div class="speech-box statue-box">
+          <div class="box-label">
+            <span>🗿 Coach Arya Speaking (Through Speaker)</span>
+            <span id="modelBadge" style="font-size:0.75rem; background:#f1f5f9; padding:2px 8px; border-radius:6px; color:#64748b;">
+              Llama 3.3 70B (NVIDIA NIM)
+            </span>
+          </div>
+          <div class="box-text" id="statueAnswerText">
+            Namaskaram! I am Coach Arya, your friendly talking statue. Talk to me in English, and I will help you become fluent!
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Side: English Coach Feedback Board (Tianmind Skill) -->
+    <aside class="sidebar-panel">
+      <div class="coach-header">
+        <h2>
+          <span>💡 Coach's Live Notes</span>
+        </h2>
+        <span id="ratingBadge" style="font-size:0.75rem; font-weight:800; background:#e0f2fe; color:#0369a1; padding:4px 10px; border-radius:12px;">
+          Ready to learn
+        </span>
+      </div>
+
+      <!-- Real-time Correction / Feedback Card -->
+      <div class="coach-card card-correction" id="correctionCard">
+        <div class="coach-card-title">
+          <span>🎯 How To Say It Better</span>
+        </div>
+        <div class="coach-card-body" id="correctionText">
+          Speak to the statue, and if there is a mistake in grammar or word choice, Coach Arya will gently show you how to say it!
+        </div>
+      </div>
+
+      <!-- Micro-Lesson / Grammar Tip Card -->
+      <div class="coach-card card-tip" id="tipCard">
+        <div class="coach-card-title">
+          <span>🌟 Micro-Lesson of the Moment</span>
+        </div>
+        <div class="coach-card-body" id="tipText">
+          Tip: In English, practice speaking in full sentences! Instead of just saying "Football", say "I love playing football after school."
+        </div>
+      </div>
+
+      <!-- Student Practice Starters -->
+      <div class="starters-section">
+        <h3>🗣️ Try Saying One of These (Click to Test):</h3>
+        <div class="starter-chips">
+          <button class="chip-btn" onclick="testSpokenInput('Yesterday I go to the beach with my father.')">
+            💬 "Yesterday I go to the beach..." (Past tense drill)
+          </button>
+          <button class="chip-btn" onclick="testSpokenInput('I has two brothers and one sister.')">
+            💬 "I has two brothers..." (Has vs Have drill)
+          </button>
+          <button class="chip-btn" onclick="testSpokenInput('Which standard you studying in school?')">
+            💬 "Which standard you studying..." (Question format)
+          </button>
+          <button class="chip-btn" onclick="testSpokenInput('I like to eat hot appam and kadala curry.')">
+            💬 "I like to eat hot appam..." (Kerala food conversation)
+          </button>
+          <button class="chip-btn" onclick="testSpokenInput('Why it is raining so heavily in Kerala today?')">
+            💬 "Why it is raining so heavily..." (Monsoon conversation)
+          </button>
+          <button class="chip-btn" onclick="testSpokenInput('My favorite subject is English because it is interesting.')">
+            💬 "My favorite subject is English..." (Compliment drill)
+          </button>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Kiosk Footer -->
+  <footer>
+    <div class="footer-left">
+      <span>📍 Kerala School AI English Coach</span>
+      <span>•</span>
+      <span>Engine: <strong>FreeLLMAPI Router (NVIDIA • Groq • Gemini • OpenRouter)</strong></span>
+      <span>•</span>
+      <span>Skill: <strong>Tianmind English Coach Dual-Action</strong></span>
+    </div>
+    <div>
+      <button class="btn btn-primary" onclick="simulateRandomKeralaStudent()">🎲 Test Student Voice</button>
+    </div>
+  </footer>
+
+  <!-- Load Shared FreeLLMAPI Multi-Provider & Multi-Key Router -->
+  <script src="llm-router.js"></script>
+
+  <script>
+    // --- Application State ---
+    let isListening = false;
+    let isSpeaking = false;
+    let isThinking = false;
+    let recognition = null;
+    let wakeLock = null;
+    let synth = window.speechSynthesis;
+    let selectedVoice = null;
+    let conversationHistory = [];
+
+    // --- DOM Elements ---
+    const mascotWrapper = document.getElementById('mascotWrapper');
+    const stateBadge = document.getElementById('stateBadge');
+    const studentSpeechText = document.getElementById('studentSpeechText');
+    const statueAnswerText = document.getElementById('statueAnswerText');
+    const correctionText = document.getElementById('correctionText');
+    const tipText = document.getElementById('tipText');
+    const ratingBadge = document.getElementById('ratingBadge');
+    const micPill = document.getElementById('micPill');
+    const micIcon = document.getElementById('micIcon');
+    const micStatusText = document.getElementById('micStatusText');
+    const interimIndicator = document.getElementById('interimIndicator');
+    const wakeLockStatus = document.getElementById('wakeLockStatus');
+    const modelBadge = document.getElementById('modelBadge');
+    const eyesOpen = document.getElementById('eyesOpen');
+    const eyesClosed = document.getElementById('eyesClosed');
+
+    function updateRouterStatusBadge() {
+      const cfg = FreeLLMRouter.loadConfig();
+      const activeCount = FreeLLMRouter.countActiveKeys(cfg);
+      if (activeCount > 0) {
+        modelBadge.innerText = `FreeLLMAPI (${activeCount} active key${activeCount > 1 ? 's' : ''})`;
+      } else {
+        modelBadge.innerText = 'Demo Mode (Add keys in Admin)';
+      }
+    }
+
+    // --- Blinking Animation Loop ---
+    function triggerBlink() {
+      eyesOpen.style.display = 'none';
+      eyesClosed.style.display = 'block';
+      setTimeout(() => {
+        eyesOpen.style.display = 'block';
+        eyesClosed.style.display = 'none';
+      }, 180);
+      setTimeout(triggerBlink, Math.random() * 4000 + 2500);
+    }
+    setTimeout(triggerBlink, 2500);
+
+    // --- Speech Synthesis Setup (Tuned for Indian English / Kerala Classroom) ---
+    function setupVoices() {
+      if (!synth) return;
+      const voices = synth.getVoices();
+      if (!voices.length) return;
+      selectedVoice = voices.find(v => v.lang === 'en-IN') ||
+                      voices.find(v => v.lang.includes('en-IN')) ||
+                      voices.find(v => v.name.toLowerCase().includes('india')) ||
+                      voices.find(v => v.lang.startsWith('en')) ||
+                      voices[0];
+    }
+    if (synth) {
+      setupVoices();
+      synth.onvoiceschanged = setupVoices;
+    }
+
+    // --- Always-Awake Screen WakeLock ---
+    async function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLock = await navigator.wakeLock.request('screen');
+          wakeLockStatus.innerText = 'Always Awake: ACTIVE';
+          wakeLock.addEventListener('release', () => {
+            wakeLockStatus.innerText = 'Always Awake: Released';
+            setTimeout(requestWakeLock, 2000);
+          });
+        }
+      } catch (err) {
+        console.warn('WakeLock:', err);
+      }
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') requestWakeLock();
+    });
+    requestWakeLock();
+
+    // --- ADVANCED 7-VISEME PHONETIC LIP-SYNC ENGINE ---
+    class LipSyncEngine {
+      constructor() {
+        this.visemes = {
+          closed: document.getElementById('viseme-closed'),
+          mm: document.getElementById('viseme-mm'),
+          fv: document.getElementById('viseme-fv'),
+          mid: document.getElementById('viseme-mid'),
+          ee: document.getElementById('viseme-ee'),
+          oh: document.getElementById('viseme-oh'),
+          ah: document.getElementById('viseme-ah')
+        };
+        this.jaw = document.getElementById('jawGroup');
+        this.stepTimer = null;
+        this.watchdog = null;
+        this.activeViseme = 'closed';
+        this.timeline = [];
+        this.cursor = 0;
+        this.isRunning = false;
+      }
+
+      setViseme(name) {
+        if (!this.visemes[name] || this.activeViseme === name) return;
+        Object.keys(this.visemes).forEach(k => {
+          if (this.visemes[k]) {
+            this.visemes[k].style.display = (k === name) ? 'block' : 'none';
+          }
+        });
+        this.activeViseme = name;
+        if (this.jaw) {
+          const dropMap = { ah: 2.8, oh: 2.0, ee: 1.2, mid: 1.0, fv: 0.6, mm: 0, closed: 0 };
+          this.jaw.style.transform = `translateY(${dropMap[name] || 0}px)`;
+        }
+      }
+
+      buildTimeline(text) {
+        const frames = [];
+        const clean = (text || '');
+        for (let i = 0; i < clean.length; i++) {
+          const ch = clean[i].toLowerCase();
+          const next = (clean[i + 1] || '').toLowerCase();
+          let viseme = 'mid';
+          let duration = 68;
+
+          if (ch === ' ') {
+            viseme = 'closed';
+            duration = 55;
+          } else if (/[.,!?;:]/.test(ch)) {
+            viseme = 'closed';
+            duration = 160;
+          } else if (/[mbp]/.test(ch)) {
+            viseme = 'mm';
+            duration = 65;
+          } else if (/[fv]/.test(ch)) {
+            viseme = 'fv';
+            duration = 68;
+          } else if (ch === 'a') {
+            viseme = (next === 'i' || next === 'y') ? 'ee' : 'ah';
+            duration = 90;
+          } else if (/[ouwq]/.test(ch)) {
+            viseme = 'oh';
+            duration = 85;
+          } else if (/[eiy]/.test(ch)) {
+            viseme = 'ee';
+            duration = 82;
+          } else if (/[a-z]/.test(ch)) {
+            viseme = 'mid';
+            duration = 62;
+          } else {
+            continue;
+          }
+
+          if (frames.length > 0 && frames[frames.length - 1].viseme === viseme && viseme === 'mid') {
+            frames[frames.length - 1].duration += 30;
+            continue;
+          }
+          frames.push({ charIndex: i, viseme, duration });
+        }
+        return frames;
+      }
+
+      start(utterance, text, rate = 0.92) {
+        this.stop();
+        this.isRunning = true;
+        this.timeline = this.buildTimeline(text);
+        this.cursor = 0;
+        const speedFactor = 0.92 / (rate || 0.92);
+
+        utterance.onboundary = (e) => {
+          if (!this.isRunning) return;
+          if (typeof e.charIndex === 'number') {
+            const targetIdx = this.timeline.findIndex(f => f.charIndex >= e.charIndex);
+            if (targetIdx !== -1) {
+              this.cursor = targetIdx;
+              this.setViseme(this.timeline[this.cursor].viseme);
+            }
+          }
+        };
+
+        const tick = () => {
+          if (!this.isRunning) return;
+          if (this.cursor >= this.timeline.length) {
+            this.setViseme('closed');
+            return;
+          }
+          const frame = this.timeline[this.cursor];
+          this.setViseme(frame.viseme);
+          this.cursor++;
+          this.stepTimer = setTimeout(tick, Math.round(frame.duration * speedFactor));
+        };
+
+        tick();
+
+        this.watchdog = setInterval(() => {
+          if (this.isRunning && window.speechSynthesis && !window.speechSynthesis.speaking) {
+            this.stop();
+          }
+        }, 250);
+      }
+
+      stop() {
+        this.isRunning = false;
+        if (this.stepTimer) {
+          clearTimeout(this.stepTimer);
+          this.stepTimer = null;
+        }
+        if (this.watchdog) {
+          clearInterval(this.watchdog);
+          this.watchdog = null;
+        }
+        this.setViseme('closed');
+      }
+    }
+
+    const lipSync = new LipSyncEngine();
+
+    // --- Speech Output (TTS) with Proper Lip Sync & Anti-Feedback ---
+    function speak(text, onComplete) {
+      if (!synth) return;
+
+      pauseRecognitionForSpeech();
+      isSpeaking = true;
+      mascotWrapper.classList.add('speaking');
+      mascotWrapper.classList.remove('listening');
+      stateBadge.className = 'statue-state-badge state-speaking';
+      stateBadge.innerText = '🗣️ Coach Arya Answering...';
+
+      synth.cancel();
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      if (selectedVoice) utterance.voice = selectedVoice;
+      utterance.rate = 0.92; // Measured, clear pace for Kerala students
+      utterance.pitch = 1.05;
+
+      let lipSyncStarted = false;
+      const beginLipSync = () => {
+        if (!lipSyncStarted && isSpeaking) {
+          lipSyncStarted = true;
+          lipSync.start(utterance, text, utterance.rate);
+        }
+      };
+
+      utterance.onstart = beginLipSync;
+
+      utterance.onend = () => {
+        lipSync.stop();
+        isSpeaking = false;
+        mascotWrapper.classList.remove('speaking');
+        mascotWrapper.classList.add('listening');
+        stateBadge.className = 'statue-state-badge state-listening';
+        stateBadge.innerText = '👂 I am listening... Say something in English!';
+        resumeRecognitionAfterSpeech();
+        if (onComplete) onComplete();
+      };
+
+      utterance.onerror = (e) => {
+        console.warn('TTS error:', e);
+        lipSync.stop();
+        isSpeaking = false;
+        mascotWrapper.classList.remove('speaking');
+        resumeRecognitionAfterSpeech();
+      };
+
+      synth.speak(utterance);
+
+      // Mobile browser safety fallback if onstart event is delayed
+      setTimeout(() => {
+        if (isSpeaking && !lipSyncStarted) beginLipSync();
+      }, 180);
+    }
+
+    // --- Speech Recognition (Continuous for Statue) ---
+    function initSpeechRecognition() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        stateBadge.innerText = '⚠️ Speech Recognition not supported in this browser. Please use Chrome or Edge.';
+        return;
+      }
+
+      recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-IN'; // Tuned for Indian English
+
+      recognition.onstart = () => {
+        isListening = true;
+        micPill.classList.add('active');
+        micIcon.innerText = '🎙️';
+        micStatusText.innerText = 'Statue Mic: ACTIVE';
+        if (!isSpeaking && !isThinking) {
+          mascotWrapper.classList.add('listening');
+          stateBadge.className = 'statue-state-badge state-listening';
+          stateBadge.innerText = '👂 I am listening... Say something in English!';
+        }
+      };
+
+      recognition.onresult = (event) => {
+        if (isSpeaking || isThinking) return;
+
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+
+        if (interimTranscript) {
+          interimIndicator.style.display = 'inline';
+          studentSpeechText.innerText = `"${interimTranscript}"`;
+        }
+
+        if (finalTranscript) {
+          interimIndicator.style.display = 'none';
+          const cleanText = finalTranscript.trim();
+          studentSpeechText.innerText = `"${cleanText}"`;
+          handleStudentInput(cleanText);
+        }
+      };
+
+      recognition.onerror = (event) => {
+        if (event.error === 'not-allowed') {
+          stateBadge.innerText = '⚠️ Microphone access denied. Please click allow.';
+        }
+      };
+
+      recognition.onend = () => {
+        isListening = false;
+        if (!isSpeaking && !isThinking) {
+          setTimeout(startRecognitionSafe, 300);
+        }
+      };
+    }
+
+    function startRecognitionSafe() {
+      if (!recognition) return;
+      try { recognition.start(); } catch (e) {}
+    }
+
+    function pauseRecognitionForSpeech() {
+      if (recognition && isListening) {
+        try { recognition.abort(); } catch (e) {}
+      }
+    }
+
+    function resumeRecognitionAfterSpeech() {
+      setTimeout(() => {
+        if (!isSpeaking && !isThinking) startRecognitionSafe();
+      }, 500);
+    }
+
+    function toggleListening() {
+      if (isListening) {
+        if (recognition) recognition.stop();
+        micPill.classList.remove('active');
+        micIcon.innerText = '🔇';
+        micStatusText.innerText = 'Statue Mic: MUTED';
+        mascotWrapper.classList.remove('listening');
+        stateBadge.className = 'statue-state-badge';
+        stateBadge.innerText = '⏸️ Microphone is Paused';
+      } else {
+        startRecognitionSafe();
+      }
+    }
+
+    // --- FreeLLMAPI Multi-Provider & Tianmind English Coach Dual-Action Engine ---
+    function extractCoachJson(rawContent) {
+      if (!rawContent) return null;
+      let cleaned = rawContent.trim();
+      // Strip markdown code blocks if returned by Gemini / OpenRouter
+      cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+      const firstBrace = cleaned.indexOf('{');
+      const lastBrace = cleaned.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        try {
+          return JSON.parse(cleaned.slice(firstBrace, lastBrace + 1));
+        } catch (e) {}
+      }
+      try {
+        return JSON.parse(cleaned);
+      } catch (e) {
+        return {
+          spoken: cleaned.replace(/[\{\}\"]/g, '').trim(),
+          correction: "Keep practicing daily!",
+          tip: "Speak with confidence and smile!",
+          student_input_rating: "Good"
+        };
+      }
+    }
+
+    async function handleStudentInput(studentText) {
+      if (!studentText || studentText.length < 2) return;
+
+      isThinking = true;
+      pauseRecognitionForSpeech();
+      mascotWrapper.classList.remove('listening');
+      stateBadge.className = 'statue-state-badge state-thinking';
+      stateBadge.innerText = '🤔 Coach Arya is thinking...';
+      statueAnswerText.innerText = 'Listening to your English...';
+
+      // If no API Keys configured in Admin yet, fallback to friendly offline simulation
+      if (FreeLLMRouter.countActiveKeys() === 0) {
+        await simulateOfflineCoach(studentText);
+        isThinking = false;
+        return;
+      }
+
+      // System Prompt implementing Tianmind Studio English Coach Skill for Kerala Students
+      const systemPrompt = `You are "Arya", a warm, enthusiastic AI English Coach living inside a talking statue in a Kerala school. Your mission is to help elementary and middle school Kerala students speak English naturally with confidence.
+
+Target Students:
+- Kerala school students (ESL beginners to intermediate, A1-B1).
+- Native language is usually Malayalam.
+- They talk to you using a microphone attached to the statue, and hear you through a speaker.
+
+Pedagogical Rules (Based on Tianmind English Coach Skill):
+1. SPOKEN FIRST: Your spoken response must be conversational, warm, short (2-3 sentences maximum), and easy to understand aloud by kids.
+2. DUAL-ACTION COACHING:
+   - First, respond directly and warmly to what the student said or asked.
+   - Second, if the student made any grammatical, prepositional, or tense error (e.g., "I goes", "yesterday I go", "which standard you studying"), include ONE gentle spoken correction in natural conversational tone. Example: "By the way, instead of 'I goes', we say 'I go to school'!"
+   - If their sentence was grammatically good, praise their English enthusiastically!
+   - End with a friendly, simple question to keep the student practicing speaking.
+
+Output Format:
+You MUST respond in valid JSON ONLY (no markdown fences) with these exact keys:
+{
+  "spoken": "The short 2-3 sentence conversational response that the statue will speak out loud via text-to-speech.",
+  "correction": "Clear explanation of mistake if any (e.g. 'Instead of \"I has a dog\", say \"I have a dog\"'). If no error, say 'Great grammar! Everything was correct.'",
+  "tip": "A quick micro-lesson or vocabulary upgrade (e.g., 'Grammar Tip: Use \"have\" with I, you, we, they, and \"has\" with he, she, it.')",
+  "student_input_rating": "Good / Needs Practice / Excellent"
+}`;
+
+      conversationHistory.push({ role: "user", content: studentText });
+      if (conversationHistory.length > 6) conversationHistory = conversationHistory.slice(-6);
+
+      try {
+        const result = await FreeLLMRouter.chat({
+          messages: [
+            { role: "system", content: systemPrompt },
+            ...conversationHistory
+          ],
+          temperature: 0.5,
+          maxTokens: 450,
+          jsonMode: true
+        });
+
+        const parsed = extractCoachJson(result.content);
+        const spokenReply = (parsed && parsed.spoken) ? parsed.spoken : result.content;
+
+        conversationHistory.push({ role: "assistant", content: spokenReply });
+
+        // Update UI & show active routed provider + latency
+        const shortModel = result.model.includes('/') ? result.model.split('/').pop() : result.model;
+        modelBadge.innerText = `${result.providerName} • ${shortModel} (${result.latencyMs}ms)`;
+        statueAnswerText.innerText = spokenReply;
+        correctionText.innerText = (parsed && parsed.correction) || "Good job!";
+        tipText.innerText = (parsed && parsed.tip) || "Keep practicing every day!";
+        ratingBadge.innerText = (parsed && parsed.student_input_rating) || "Great effort";
+
+        isThinking = false;
+        speak(spokenReply);
+
+      } catch (err) {
+        console.error("FreeLLMAPI Router call failed:", err);
+        isThinking = false;
+        const fallbackMsg = "I had trouble reaching my AI teachers right now. Please ask your teacher to check the API keys in the Admin panel, or try speaking again.";
+        statueAnswerText.innerText = fallbackMsg;
+        speak(fallbackMsg);
+      }
+    }
+
+    // --- Offline Simulation Mode (When API Key is not yet entered) ---
+    async function simulateOfflineCoach(studentText) {
+      await new Promise(r => setTimeout(r, 700));
+      const lower = studentText.toLowerCase();
+
+      let spoken = "Hello! That was wonderful. Tell me more about what you like doing at school!";
+      let correction = "Great grammar! Your sentence was very clear.";
+      let tip = "Tip: When talking about hobbies, say 'I enjoy...' or 'I like...' followed by '-ing'.";
+      let rating = "Good";
+
+      if (lower.includes("yesterday") && (lower.includes("go") || lower.includes("eat") || lower.includes("play"))) {
+        spoken = "That sounds like fun! By the way, because it happened yesterday, we say 'went' instead of 'go'. What did you enjoy most about it?";
+        correction = "Instead of 'Yesterday I go', say 'Yesterday I went'.";
+        tip = "Past Tense Rule: The past tense of 'go' is 'went'.";
+        rating = "Needs Practice";
+      } else if (lower.includes("i has") || lower.includes("he have")) {
+        spoken = "I see! Notice that with 'I', we say 'I have'. Can you tell me what else you have?";
+        correction = "Instead of 'I has', say 'I have'.";
+        tip = "Subject-Verb Agreement: Use 'have' with I, you, we, they.";
+        rating = "Needs Practice";
+      } else if (lower.includes("which standard") || lower.includes("what standard")) {
+        spoken = "I am in standard five! In English, we also often ask, 'Which class are you studying in?' What is your favorite subject?";
+        correction = "You can say: 'Which class are you in?' or 'Which class are you studying in?'";
+        tip = "Phrasing: 'Class' and 'Grade' are globally used alongside 'Standard'.";
+        rating = "Good";
+      } else if (lower.includes("appam") || lower.includes("food") || lower.includes("puttu")) {
+        spoken = "Yum! Kerala food like appam and puttu is so delicious. What is your favorite curry to eat with it?";
+        correction = "Your sentence was very natural and expressive!";
+        tip = "Vocabulary: Use descriptive words like 'crisp', 'steamed', 'spicy', and 'tasty'!";
+        rating = "Excellent";
+      }
+
+      statueAnswerText.innerText = spoken;
+      correctionText.innerText = correction;
+      tipText.innerText = tip;
+      ratingBadge.innerText = rating;
+
+      speak(spoken);
+    }
+
+    // --- Interactive Testing Functions ---
+    function testSpokenInput(text) {
+      studentSpeechText.innerText = `"${text}"`;
+      handleStudentInput(text);
+    }
+
+    function simulateRandomKeralaStudent() {
+      const examples = [
+        "Yesterday I go to Kozhikode beach with my family.",
+        "I has two pencils in my school bag.",
+        "Which class you studying in school?",
+        "My mother cook very tasty biryani on Sunday.",
+        "I love playing football with Anoop in the evening.",
+        "Why is it raining so heavily in Kerala today?"
+      ];
+      const randomText = examples[Math.floor(Math.random() * examples.length)];
+      testSpokenInput(randomText);
+    }
+
+    // --- Init ---
+    window.addEventListener('DOMContentLoaded', async () => {
+      await FreeLLMRouter.hydrateFromServerIfAvailable();
+      updateRouterStatusBadge();
+      initSpeechRecognition();
+      
+      const enableAudio = () => {
+        startRecognitionSafe();
+        requestWakeLock();
+        document.removeEventListener('click', enableAudio);
+      };
+      document.addEventListener('click', enableAudio);
+
+      startRecognitionSafe();
+    });
+  </script>
+</body>
+</html>
