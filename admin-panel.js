@@ -189,6 +189,8 @@
         </div>
 
         <div class="adm-container">
+          <div id="admCloudBanner" style="padding:12px 16px; border-radius:14px; font-size:0.86rem; font-weight:700; border:1px solid rgba(255,255,255,0.15); background:rgba(19,29,58,0.9);"></div>
+
           <div class="adm-stats">
             <div class="adm-stat"><div style="font-size:0.75rem; color:#94a3b8; font-weight:800;">ACTIVE API KEYS</div><div id="admStatKeys" style="font-family:'Fredoka',sans-serif; font-size:1.8rem; color:#76b900;">0</div></div>
             <div class="adm-stat"><div style="font-size:0.75rem; color:#94a3b8; font-weight:800;">TOTAL REQUESTS</div><div id="admStatReq" style="font-family:'Fredoka',sans-serif; font-size:1.8rem;">0</div></div>
@@ -274,10 +276,34 @@
     document.getElementById('admBackBtn2').onclick = handleClose;
   }
 
+  function renderCloudBanner() {
+    const el = document.getElementById('admCloudBanner');
+    if (!el) return;
+    const st = FreeLLMRouter.getCloudStatus();
+    const envTotal = Object.values(st.envKeyCounts || {}).reduce((a, b) => a + b, 0);
+    if (st.cloudDbConnected) {
+      el.style.background = 'rgba(34, 197, 94, 0.16)';
+      el.style.borderColor = 'rgba(34, 197, 94, 0.45)';
+      el.style.color = '#bbf7d0';
+      el.innerHTML = `🌍 <strong>Global Cloud Sync: CONNECTED (Upstash Redis)</strong> — Any API key you add, edit, or delete here immediately works on <strong>ALL phones, tablets, and PCs worldwide</strong>!`;
+    } else if (envTotal > 0) {
+      el.style.background = 'rgba(34, 197, 94, 0.16)';
+      el.style.borderColor = 'rgba(34, 197, 94, 0.45)';
+      el.style.color = '#bbf7d0';
+      el.innerHTML = `🌍 <strong>Global Internet Access: ACTIVE (${envTotal} Vercel Env key${envTotal > 1 ? 's' : ''})</strong> — Works on ALL devices worldwide! (Connect Upstash Redis in Vercel → Storage to also manage global keys directly from this page.)`;
+    } else {
+      el.style.background = 'rgba(245, 158, 11, 0.16)';
+      el.style.borderColor = 'rgba(245, 158, 11, 0.45)';
+      el.style.color = '#fde68a';
+      el.innerHTML = `🟡 <strong>Local Browser Mode Only</strong> — To make keys work globally on <strong>ALL devices over the internet</strong>, open Vercel Dashboard → <code>kelsila</code> → <strong>Storage → Create Database → Upstash Redis (Free) → Connect</strong> (2 clicks!), OR set <code>GROQ_API_KEYS</code> / <code>GOOGLE_API_KEYS</code> / <code>NVIDIA_API_KEYS</code> / <code>OPENROUTER_API_KEYS</code> in Vercel Settings → Environment Variables.`;
+    }
+  }
+
   function renderAll() {
     const cfg = FreeLLMRouter.loadConfig();
+    renderCloudBanner();
 
-    document.getElementById('admStatKeys').innerText = FreeLLMRouter.countActiveKeys(cfg);
+    document.getElementById('admStatKeys').innerText = FreeLLMRouter.countActiveKeys();
     const tot = cfg.stats.totalRequests || 0;
     const ok = cfg.stats.totalSuccess || 0;
     document.getElementById('admStatReq').innerText = tot;
@@ -422,6 +448,7 @@
     document.getElementById('admLockScreen').style.display = 'none';
     document.getElementById('admDashboard').style.display = 'block';
     await FreeLLMRouter.hydrateFromServerIfAvailable();
+    await FreeLLMRouter.loadCloudConfigForAdmin();
     renderAll();
     clearInterval(cooldownTimer);
     cooldownTimer = setInterval(refreshPillsInPlace, 5000);

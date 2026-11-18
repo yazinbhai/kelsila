@@ -217,13 +217,19 @@
     }
   }
 
-  function saveConfig(config) {
+  let cloudStatus = { cloudDbConnected: false, envKeyCounts: {}, source: 'none', serverKeyCount: 0 };
+
+  function saveConfig(config, options = {}) {
     memoryConfig = config;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
     } catch (e) {
       console.warn('Could not save router config to localStorage (using memory fallback):', e);
     }
+
+    if (options.skipRemoteSync) return;
+
+    // 1. Local Windows launcher.py disk persistence
     if (window.location.protocol.startsWith('http') &&
         (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')) {
       fetch('/api/config', {
@@ -232,6 +238,71 @@
         body: JSON.stringify(config)
       }).catch(() => {});
     }
+
+    // 2. Global Cloud DB persistence (Upstash Redis on Vercel) when Admin is unlocked
+    if (hasProxyAvailable() && sessionStorage.getItem('COACH_ADMIN_UNLOCKED_V1') === '1') {
+      fetch('/api/cloud-config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Passkey': ADMIN_PASSKEY
+        },
+        body: JSON.stringify(config)
+      })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+          if (d && d.savedToCloud) {
+            cloudStatus.cloudDbConnected = true;
+            cloudStatus.source = 'cloud-redis';
+            serverKeyCount = countLocalKeys(config);
+          }
+        })
+        .catch(() => {});
+    }
+  }
+
+  async function loadCloudConfigForAdmin() {
+    if (!hasProxyAvailable()) return cloudStatus;
+    try {
+      const res = await fetch('/api/cloud-config', {
+        method: 'GET',
+        headers: { 'X-Admin-Passkey': ADMIN_PASSKEY }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        cloudStatus.cloudDbConnected = Boolean(data.cloudDbConnected);
+        cloudStatus.envKeyCounts = data.envKeyCounts || {};
+        const envTotal = Object.values(cloudStatus.envKeyCounts).reduce((a, b) => a + b, 0);
+
+        if (data.config && data.config.providers) {
+          // Hydrate cloud config into Admin UI so admin sees exact global keys from any device!
+          const cloudCount = countLocalKeys(data.config);
+          const localCount = countLocalKeys(loadConfig());
+          if (cloudCount > 0 || localCount === 0) {
+            saveConfig(data.config, { skipRemoteSync: true });
+          } else if (data.cloudDbConnected && localCount > 0) {
+            // Admin already had local keys before connecting Redis -> push them up to Cloud!
+            saveConfig(loadConfig());
+          }
+          serverKeyCount = Math.max(cloudCount, envTotal);
+          cloudStatus.source = cloudCount > 0 ? 'cloud-redis' : (envTotal > 0 ? 'vercel-env' : 'none');
+        } else if (data.cloudDbConnected && countLocalKeys(loadConfig()) > 0) {
+          // Push existing local browser keys up to newly connected Cloud DB automatically
+          saveConfig(loadConfig());
+          serverKeyCount = countLocalKeys(loadConfig()) + envTotal;
+          cloudStatus.source = 'cloud-redis';
+        } else {
+          serverKeyCount = envTotal;
+          cloudStatus.source = envTotal > 0 ? 'vercel-env' : 'none';
+        }
+        cloudStatus.serverKeyCount = serverKeyCount;
+      }
+    } catch (e) {}
+    return cloudStatus;
+  }
+
+  function getCloudStatus() {
+    return { ...cloudStatus, serverKeyCount };
   }
 
   function importFromUrlSync() {
@@ -301,14 +372,17 @@
       } catch (e) {}
     }
 
-    // 2. Check optional Vercel server-side environment keys (/api/server-chat)
+    // 2. Check global Cloud DB / Vercel Env keys (/api/server-chat) — safe for public student devices!
     if (hasProxyAvailable()) {
       try {
         const sRes = await fetch('/api/server-chat');
         if (sRes.ok) {
           const sData = await sRes.json();
+          cloudStatus.cloudDbConnected = Boolean(sData.cloudDbConnected);
+          cloudStatus.source = sData.source || 'none';
           if (sData && sData.configured && sData.totalKeys > 0) {
             serverKeyCount = sData.totalKeys;
+            cloudStatus.serverKeyCount = sData.totalKeys;
           }
         }
       } catch (e) {}
@@ -714,6 +788,17 @@
       }
     }
 
+    if (!overrideKeyId && serverKeyCount > 0 && hasProxyAvailable()) {
+      try {
+        const sRes = await fetch('/api/server-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages, temperature, maxTokens, jsonMode })
+        });
+        if (sRes.ok) return await sRes.json();
+      } catch (e) {}
+    }
+
     const finalErr = new Error('All configured API keys failed: ' + errors.join(' | '));
     finalErr.code = 'ALL_FAILED';
     throw finalErr;
@@ -725,6 +810,8 @@
     loadConfig,
     saveConfig,
     hydrateFromServerIfAvailable,
+    loadCloudConfigForAdmin,
+    getCloudStatus,
     createSyncUrl,
     importFromUrlSync,
     createKeyEntry,

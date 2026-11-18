@@ -922,9 +922,15 @@
     const eyesClosed = document.getElementById('eyesClosed');
 
     function updateRouterStatusBadge() {
-      const activeCount = FreeLLMRouter.countActiveKeys();
-      if (activeCount > 0) {
-        modelBadge.innerText = `FreeLLMAPI (${activeCount} active key${activeCount > 1 ? 's' : ''})`;
+      const localCount = FreeLLMRouter.countLocalKeys();
+      const totalCount = FreeLLMRouter.countActiveKeys();
+      const cloud = FreeLLMRouter.getCloudStatus();
+      if (totalCount > 0) {
+        if (cloud.serverKeyCount > 0 && localCount === 0) {
+          modelBadge.innerText = `🌍 Global Cloud AI (${cloud.serverKeyCount} key${cloud.serverKeyCount > 1 ? 's' : ''})`;
+        } else {
+          modelBadge.innerText = `FreeLLMAPI (${totalCount} active key${totalCount > 1 ? 's' : ''})`;
+        }
         modelBadge.style.cursor = 'default';
         modelBadge.onclick = null;
       } else {
